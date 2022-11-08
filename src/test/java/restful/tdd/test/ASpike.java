@@ -19,6 +19,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tdd.di.ContextConfig;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -110,7 +111,14 @@ public class ASpike {
 
         public TestProviders(Application application) {
             this.application = application;
-            writers = (List<MessageBodyWriter>) this.application.getClasses().stream().filter(MessageBodyWriter.class::isAssignableFrom).map(c -> {
+
+            ContextConfig config = new ContextConfig();
+            List<Class<?>> writerClasses = this.application.getClasses().stream().filter(MessageBodyWriter.class::isAssignableFrom).toList();
+            for (Class writerClass: writerClasses) {
+//                config.bind(writerClass, writerClass);
+            }
+
+            writers = (List<MessageBodyWriter>) writerClasses.stream().map(c -> {
                 try {
                     return c.getConstructor().newInstance();
                 } catch (Exception e) {
