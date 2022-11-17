@@ -8,7 +8,6 @@ import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.Providers;
 import jakarta.ws.rs.ext.RuntimeDelegate;
-import org.eclipse.jetty.http.HttpHeader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +28,6 @@ public class ResourceServletTest extends ServletTest {
     private ResourceRouter router;
     private ResourceContext resourceContext;
     private Providers providers;
-    private OutboundResponseBuilder response;
 
     @Override
     protected Servlet getServlet() {
@@ -47,8 +45,6 @@ public class ResourceServletTest extends ServletTest {
 
     @BeforeEach
     public void before() {
-        response = new OutboundResponseBuilder();
-
         RuntimeDelegate delegate = Mockito.mock(RuntimeDelegate.class);
         RuntimeDelegate.setInstance(delegate);
         Mockito.when(delegate.createHeaderDelegate(eq(NewCookie.class))).thenReturn(new RuntimeDelegate.HeaderDelegate<NewCookie>() {
@@ -64,16 +60,20 @@ public class ResourceServletTest extends ServletTest {
         });
     }
 
+    public OutboundResponseBuilder response() {
+        return new OutboundResponseBuilder();
+    }
+
     @Test
     public void should_use_status_code_from_response() throws Exception {
-        response.status(Response.Status.NOT_MODIFIED).returnFrom(router);
+        response().status(Response.Status.NOT_MODIFIED).returnFrom(router);
         HttpResponse<String> httpResponse = get("/test");
         Assertions.assertEquals(Response.Status.NOT_MODIFIED.getStatusCode(), httpResponse.statusCode());
     }
 
     @Test
     public void should_use_http_headers_from_response() throws Exception {
-        response.status(Response.Status.NOT_MODIFIED).headers("Set-Cookie", new NewCookie.Builder("SESSION_ID").value("session").build(), new NewCookie.Builder("USER_ID").value("user").build()).returnFrom(router);
+        response().status(Response.Status.NOT_MODIFIED).headers("Set-Cookie", new NewCookie.Builder("SESSION_ID").value("session").build(), new NewCookie.Builder("USER_ID").value("user").build()).returnFrom(router);
         HttpResponse<String> httpResponse = get("/test");
         Assertions.assertArrayEquals(new String[]{"SESSION_ID=session", "USER_ID=user"}, httpResponse.headers().allValues("Set-Cookie").toArray(String[]::new));
     }
@@ -86,7 +86,7 @@ public class ResourceServletTest extends ServletTest {
         Annotation[] annotations = new Annotation[0];
         MediaType mediaType = MediaType.TEXT_PLAIN_TYPE;
 
-        response.entity(entity, annotations).mediaType(mediaType).returnFrom(router);
+        response().entity(entity, annotations).mediaType(mediaType).returnFrom(router);
 
         Mockito.when(providers.getMessageBodyWriter(eq(String.class), eq(String.class), eq(annotations), eq(mediaType))).thenReturn(new MessageBodyWriter<String>() {
             @Override
@@ -108,7 +108,7 @@ public class ResourceServletTest extends ServletTest {
 
     @Test
     public void should_use_response_from_web_application_exception() throws Exception {
-        response.status(Response.Status.FORBIDDEN)
+        response().status(Response.Status.FORBIDDEN)
                 .headers(HttpHeaders.SET_COOKIE, new NewCookie.Builder("SESSION_ID").value("session").build())
                 .entity(new GenericEntity<>("error", String.class), new Annotation[0])
                 .throwFrom(router);
@@ -127,7 +127,7 @@ public class ResourceServletTest extends ServletTest {
         Mockito.when(providers.getExceptionMapper(eq(RuntimeException.class))).thenReturn(new ExceptionMapper<RuntimeException>() {
             @Override
             public Response toResponse(RuntimeException exception) {
-                return response.status(Response.Status.FORBIDDEN).build();
+                return response().status(Response.Status.FORBIDDEN).build();
             }
         });
 
@@ -139,7 +139,7 @@ public class ResourceServletTest extends ServletTest {
     // TODO: entity is null, ignore MessageBodyWriter
     @Test
     public void should_not_call_message_body_writer_if_entity_is_null() throws Exception {
-        response.entity(null, new Annotation[0]).returnFrom(router);
+        response().entity(null, new Annotation[0]).returnFrom(router);
 
         HttpResponse<String> httpResponse = get("/test");
 
@@ -156,7 +156,7 @@ public class ResourceServletTest extends ServletTest {
         Mockito.when(router.dispatch(any(), eq(resourceContext))).thenThrow(RuntimeException.class);
         Mockito.when(providers.getExceptionMapper(eq(RuntimeException.class)))
                 .thenReturn(exception -> {
-                    throw new WebApplicationException(response.status(Response.Status.FORBIDDEN).build());
+                    throw new WebApplicationException(response().status(Response.Status.FORBIDDEN).build());
                 });
 
         HttpResponse<String> httpResponse = get("/test");
@@ -172,7 +172,7 @@ public class ResourceServletTest extends ServletTest {
                     throw new IllegalArgumentException();
                 });
         Mockito.when(providers.getExceptionMapper(eq(IllegalArgumentException.class))).thenReturn(exception -> {
-            return response.status(Response.Status.FORBIDDEN).build();
+            return response().status(Response.Status.FORBIDDEN).build();
         });
 
         HttpResponse<String> httpResponse = get("/test");
@@ -180,6 +180,29 @@ public class ResourceServletTest extends ServletTest {
         Assertions.assertEquals(Response.Status.FORBIDDEN.getStatusCode(), httpResponse.statusCode());
     }
 
+    @Test
+    public void should_map_exception_thrown_by_message_body_writer() throws Exception {
+        new OutboundResponseBuilder().entity(new GenericEntity<>(2.5, Double.class), new Annotation[0]).returnFrom(router);
+
+        Mockito.when(providers.getMessageBodyWriter(eq(Double.class), eq(Double.class), eq(new Annotation[0]), eq(MediaType.TEXT_PLAIN_TYPE))).thenReturn(new MessageBodyWriter<Double>() {
+            @Override
+            public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+                return false;
+            }
+
+            @Override
+            public void writeTo(Double aDouble, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) {
+                throw new IllegalArgumentException();
+            }
+        });
+        Mockito.when(providers.getExceptionMapper(eq(IllegalArgumentException.class))).thenReturn(e -> {
+            return new OutboundResponseBuilder().status(Response.Status.FORBIDDEN).build();
+        });
+
+        HttpResponse<String> httpResponse = get("/test");
+
+        Assertions.assertEquals(Response.Status.FORBIDDEN.getStatusCode(), httpResponse.statusCode());
+    }
 
 
     // TODO: providers gets exception mapper

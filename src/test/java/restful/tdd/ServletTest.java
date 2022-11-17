@@ -43,10 +43,14 @@ public abstract class ServletTest {
         return new URL(new URL("http://localhost:8083/"), path).toURI();
     }
 
-    public HttpResponse<String> get(String path) throws Exception {
-        HttpClient client = HttpClient.newHttpClient();
-        HttpRequest request = HttpRequest.newBuilder(path(path)).GET().build();
-        return client.send(request, HttpResponse.BodyHandlers.ofString());
+    public HttpResponse<String> get(String path) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder(path(path)).GET().build();
+            return client.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }
