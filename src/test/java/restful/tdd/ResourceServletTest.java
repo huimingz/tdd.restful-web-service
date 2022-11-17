@@ -136,8 +136,57 @@ public class ResourceServletTest extends ServletTest {
         Assertions.assertEquals(Response.Status.FORBIDDEN.getStatusCode(), httpResponse.statusCode());
     }
 
-    // TODO: 500 if MessageBodyWriter not found
     // TODO: entity is null, ignore MessageBodyWriter
+    @Test
+    public void should_not_call_message_body_writer_if_entity_is_null() throws Exception {
+        response.entity(null, new Annotation[0]).returnFrom(router);
+
+        HttpResponse<String> httpResponse = get("/test");
+
+        Assertions.assertEquals(Response.Status.OK.getStatusCode(), httpResponse.statusCode());
+        Assertions.assertEquals("", httpResponse.body());
+    }
+
+    // TODO: 500 if MessageBodyWriter not found
+    // TODO: 500 if header delegate
+    // TODO: 500 if exception mapper
+    // TODO: exception mapper
+    @Test
+    public void should_user_response_from_web_application_exception_throw_by_exception_mapper() throws Exception {
+        Mockito.when(router.dispatch(any(), eq(resourceContext))).thenThrow(RuntimeException.class);
+        Mockito.when(providers.getExceptionMapper(eq(RuntimeException.class)))
+                .thenReturn(exception -> {
+                    throw new WebApplicationException(response.status(Response.Status.FORBIDDEN).build());
+                });
+
+        HttpResponse<String> httpResponse = get("/test");
+
+        Assertions.assertEquals(Response.Status.FORBIDDEN.getStatusCode(), httpResponse.statusCode());
+    }
+
+    @Test
+    public void should_map_exception_throw_by_exception_mapper() throws Exception {
+        Mockito.when(router.dispatch(any(), eq(resourceContext))).thenThrow(RuntimeException.class);
+        Mockito.when(providers.getExceptionMapper(eq(RuntimeException.class)))
+                .thenReturn(exception -> {
+                    throw new IllegalArgumentException();
+                });
+        Mockito.when(providers.getExceptionMapper(eq(IllegalArgumentException.class))).thenReturn(exception -> {
+            return response.status(Response.Status.FORBIDDEN).build();
+        });
+
+        HttpResponse<String> httpResponse = get("/test");
+
+        Assertions.assertEquals(Response.Status.FORBIDDEN.getStatusCode(), httpResponse.statusCode());
+    }
+
+
+
+    // TODO: providers gets exception mapper
+    // TODO: runtime delegate
+    // TODO: header delegate
+    // TODO: providers gets message body writer
+    // TODO: message body writer write
 
     private void response(Response.Status status, MultivaluedMap<String, Object> headers, GenericEntity<Object> entity, Annotation[] annotations, MediaType mediaType) {
         OutboundResponse response = Mockito.mock(OutboundResponse.class);
