@@ -8,17 +8,19 @@ import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.Providers;
 import jakarta.ws.rs.ext.RuntimeDelegate;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.lang.annotation.Annotation;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.net.http.HttpResponse;
+import java.util.*;
 import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.*;
@@ -28,6 +30,7 @@ public class ResourceServletTest extends ServletTest {
     private ResourceRouter router;
     private ResourceContext resourceContext;
     private Providers providers;
+    private RuntimeDelegate delegate;
 
     @Override
     protected Servlet getServlet() {
@@ -45,7 +48,7 @@ public class ResourceServletTest extends ServletTest {
 
     @BeforeEach
     public void before() {
-        RuntimeDelegate delegate = Mockito.mock(RuntimeDelegate.class);
+        delegate = Mockito.mock(RuntimeDelegate.class);
         RuntimeDelegate.setInstance(delegate);
         Mockito.when(delegate.createHeaderDelegate(eq(NewCookie.class))).thenReturn(new RuntimeDelegate.HeaderDelegate<NewCookie>() {
             @Override
@@ -181,19 +184,86 @@ public class ResourceServletTest extends ServletTest {
     }
 
     @Test
-    public void should_use_response_from_web_application_exception_thrown_by_providers_when_find_message_body_writer() {
-        WebApplicationException exception = new WebApplicationException(response().status(Response.Status.FORBIDDEN).build());
-        response().entity(new GenericEntity<>(2.5, Double.class), new Annotation[0]).returnFrom(router);
-        Mockito.when(providers.getMessageBodyWriter(eq(Double.class), eq(Double.class), eq(new Annotation[0]), eq(MediaType.TEXT_PLAIN_TYPE))).thenThrow(exception);
+    public void should_respond_with_internal_server_error_if_no_message_body_writer_found() {
+        response().entity(new GenericEntity<>(1, Integer.class), new Annotation[0]).returnFrom(router);
+
+        Mockito.when(providers.getExceptionMapper(eq(NullPointerException.class))).thenReturn(e -> response().status(Response.Status.FORBIDDEN).build());
+
         HttpResponse<String> httpResponse = get("/test");
 
         Assertions.assertEquals(Response.Status.FORBIDDEN.getStatusCode(), httpResponse.statusCode());
     }
 
     @Test
+    public void should_respond_with_internal_error_if_no_header_delegate_found() {
+        response().headers(HttpHeaders.DATE, new Date()).returnFrom(router);
+
+        Mockito.when(providers.getExceptionMapper(eq(NullPointerException.class))).thenReturn(e -> response().status(Response.Status.FORBIDDEN).build());
+
+        HttpResponse<String> httpResponse = get("/test");
+
+        Assertions.assertEquals(Response.Status.FORBIDDEN.getStatusCode(), httpResponse.statusCode());
+    }
+
+    @Test
+    public void should_respond_with_internal_error_if_no_exception_mapper_found() {
+        Mockito.when(router.dispatch(any(), eq(resourceContext))).thenThrow(IllegalArgumentException.class);
+
+        Mockito.when(providers.getExceptionMapper(eq(NullPointerException.class))).thenReturn(e -> response().status(Response.Status.FORBIDDEN).build());
+
+        HttpResponse<String> httpResponse = get("/test");
+
+        Assertions.assertEquals(Response.Status.FORBIDDEN.getStatusCode(), httpResponse.statusCode());
+    }
+
+
+    @Test
+    public void should_use_response_from_web_application_exception_thrown_by_providers_when_find_message_body_writer() {
+        webApplicationExceptionThrownFrom(this::providers_GetMessageBodyWriter);
+    }
+
+    @Test
+    public void should_use_response_from_web_application_exception_thrown_by_message_body_writer() {
+        webApplicationExceptionThrownFrom(this::messageBodyWriter_WriteTo);
+    }
+
+    @Test
     public void should_map_exception_thrown_by_provides_when_find_message_body_writer() {
-        response().entity(new GenericEntity<>(2.5, Double.class), new Annotation[0]).returnFrom(router);
-        Mockito.when(providers.getMessageBodyWriter(eq(Double.class), eq(Double.class), eq(new Annotation[0]), eq(MediaType.TEXT_PLAIN_TYPE))).thenThrow(IllegalArgumentException.class);
+        otherExceptionThrownFrom(this::providers_GetMessageBodyWriter);
+    }
+
+    @Test
+    public void should_map_exception_thrown_by_message_body_writer() throws Exception {
+        otherExceptionThrownFrom(this::messageBodyWriter_WriteTo);
+    }
+
+    @TestFactory
+    public List<DynamicTest> should_respond_base_on_exception_thrown() {
+        ArrayList<DynamicTest> tests = new ArrayList<>();
+
+        Map<String, Consumer<Consumer<RuntimeException>>> exceptions = Map.of(
+                "Other Exception", this::otherExceptionThrownFrom,
+                "WebApplicationException", this::webApplicationExceptionThrownFrom
+        );
+        Map<String, Consumer<RuntimeException>> callers = getCallers();
+
+        for (Map.Entry<String, Consumer<RuntimeException>> caller : callers.entrySet()) {
+            for (Map.Entry<String, Consumer<Consumer<RuntimeException>>> exceptionThrownFrom : exceptions.entrySet()) {
+                tests.add(DynamicTest.dynamicTest(caller.getKey() + " throws " + exceptionThrownFrom.getKey(), () -> exceptionThrownFrom.getValue().accept(caller.getValue())));
+            }
+        }
+
+        return tests;
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @interface ExceptionThrowFrom {
+    }
+
+    private void otherExceptionThrownFrom(Consumer<RuntimeException> caller) {
+        RuntimeException exception = new IllegalArgumentException();
+
+        caller.accept(exception);
         Mockito.when(providers.getExceptionMapper(eq(IllegalArgumentException.class))).thenReturn(e -> response().status(Response.Status.FORBIDDEN).build());
 
         HttpResponse<String> httpResponse = get("/test");
@@ -201,9 +271,33 @@ public class ResourceServletTest extends ServletTest {
         Assertions.assertEquals(Response.Status.FORBIDDEN.getStatusCode(), httpResponse.statusCode());
     }
 
-    @Test
-    public void should_use_response_from_web_application_exception_thrown_by_message_body_writer() {
-        WebApplicationException exception = new WebApplicationException(response().status(Response.Status.FORBIDDEN).build());
+    private void webApplicationExceptionThrownFrom(Consumer<RuntimeException> caller) {
+        RuntimeException exception = new WebApplicationException(response().status(Response.Status.FORBIDDEN).build());
+
+        caller.accept(exception);
+        HttpResponse<String> httpResponse = get("/test");
+
+        Assertions.assertEquals(Response.Status.FORBIDDEN.getStatusCode(), httpResponse.statusCode());
+    }
+
+    @ExceptionThrowFrom
+    private void headerDelegate_toString(RuntimeException exception) {
+        response().headers(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_PLAIN_TYPE).returnFrom(router);
+        Mockito.when(delegate.createHeaderDelegate(eq(MediaType.class))).thenReturn(new RuntimeDelegate.HeaderDelegate<MediaType>() {
+            @Override
+            public MediaType fromString(String value) {
+                return null;
+            }
+
+            @Override
+            public String toString(MediaType value) {
+                throw exception;
+            }
+        });
+    }
+
+    @ExceptionThrowFrom
+    private void messageBodyWriter_WriteTo(RuntimeException exception) {
         response().entity(new GenericEntity<>(2.5, Double.class), new Annotation[0]).returnFrom(router);
         Mockito.when(providers.getMessageBodyWriter(eq(Double.class), eq(Double.class), eq(new Annotation[0]), eq(MediaType.TEXT_PLAIN_TYPE))).thenReturn(new MessageBodyWriter<Double>() {
             @Override
@@ -216,35 +310,29 @@ public class ResourceServletTest extends ServletTest {
                 throw exception;
             }
         });
-
-        HttpResponse<String> httpResponse = get("/test");
-
-        Assertions.assertEquals(Response.Status.FORBIDDEN.getStatusCode(), httpResponse.statusCode());
-
     }
 
-    @Test
-    public void should_map_exception_thrown_by_message_body_writer() throws Exception {
+    @ExceptionThrowFrom
+    private void providers_GetMessageBodyWriter(RuntimeException exception) {
         response().entity(new GenericEntity<>(2.5, Double.class), new Annotation[0]).returnFrom(router);
+        Mockito.when(providers.getMessageBodyWriter(eq(Double.class), eq(Double.class), eq(new Annotation[0]), eq(MediaType.TEXT_PLAIN_TYPE))).thenThrow(exception);
+    }
 
-        Mockito.when(providers.getMessageBodyWriter(eq(Double.class), eq(Double.class), eq(new Annotation[0]), eq(MediaType.TEXT_PLAIN_TYPE))).thenReturn(new MessageBodyWriter<Double>() {
-            @Override
-            public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
-                return false;
-            }
+    private Map<String, Consumer<RuntimeException>> getCallers() {
+        Map<String, Consumer<RuntimeException>> callers = new HashMap<>();
 
-            @Override
-            public void writeTo(Double aDouble, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) {
-                throw new IllegalArgumentException();
-            }
-        });
-        Mockito.when(providers.getExceptionMapper(eq(IllegalArgumentException.class))).thenReturn(e -> {
-            return new OutboundResponseBuilder().status(Response.Status.FORBIDDEN).build();
-        });
-
-        HttpResponse<String> httpResponse = get("/test");
-
-        Assertions.assertEquals(Response.Status.FORBIDDEN.getStatusCode(), httpResponse.statusCode());
+        for (Method method : Arrays.stream(this.getClass().getDeclaredMethods()).filter(m -> m.isAnnotationPresent(ExceptionThrowFrom.class)).toList()) {
+            String name = method.getName();
+            String callerName = name.substring(0, 1).toUpperCase() + name.substring(1).replace('_', '.');
+            callers.put(callerName, e -> {
+                try {
+                    method.invoke(this, e);
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
+            });
+        }
+        return callers;
     }
 
 
