@@ -1,6 +1,7 @@
 package restful.tdd;
 
 import jakarta.ws.rs.core.*;
+import org.mockito.Mockito;
 
 import java.lang.annotation.Annotation;
 import java.net.URI;
@@ -10,9 +11,15 @@ import java.util.Locale;
 import java.util.Set;
 
 public class StubResponseBuilder extends Response.ResponseBuilder {
+    private Object entity;
+    private int status;
+
     @Override
     public Response build() {
-        return null;
+        OutboundResponse response = Mockito.mock(OutboundResponse.class);
+        Mockito.when(response.getEntity()).thenReturn(this.entity);
+        Mockito.when(response.getStatus()).thenReturn(Response.Status.OK.getStatusCode());
+        return response;
     }
 
     @Override
@@ -27,12 +34,14 @@ public class StubResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder status(int status, String reasonPhrase) {
-        return null;
+        this.status = status;
+        return this;
     }
 
     @Override
     public Response.ResponseBuilder entity(Object entity) {
-        return null;
+        this.entity = entity;
+        return this;
     }
 
     @Override
