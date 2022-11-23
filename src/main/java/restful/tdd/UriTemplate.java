@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.Optional;
 
 interface UriTemplate extends Comparable<UriTemplate.MatchResult> {
-    interface MatchResult {
+    interface MatchResult extends Comparable {
         String getMatchedPath();
 
         String getRemaining();
