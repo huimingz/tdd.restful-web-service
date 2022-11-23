@@ -10,7 +10,6 @@ import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.shadow.com.univocity.parsers.common.processor.BeanWriterProcessor;
 import org.mockito.Mockito;
 
 import java.util.List;
@@ -74,20 +73,54 @@ public class ResourceDispatcherTest {
         Assertions.assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
     }
 
-    private static ResourceRouter.RootResource rootResource(UriTemplate unmatchedUriTemplate) {
+    @Test
+    public void should_return_404_if_no_root_resource_matched() {
+        DefaultResourceRouter router = new DefaultResourceRouter(runtime, List.of(rootResource(unmatched("/users/1"))));
+
+        OutboundResponse response = router.dispatch(request, context);
+
+        Assertions.assertNull(response.getEntity());
+        Assertions.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    public void should_return_404_if_no_resource_method_found() {
+        DefaultResourceRouter router = new DefaultResourceRouter(runtime, List.of(
+                rootResource(matched("/users/1", result("/1", 2)))));
+
+        OutboundResponse response = router.dispatch(request, context);
+
+        Assertions.assertNull(response.getEntity());
+        Assertions.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    public void should_return_204_if_method_return_null() {
+        DefaultResourceRouter router = new DefaultResourceRouter(runtime, List.of(
+                rootResource(matched("/users/1", result("/1", 2)), returns(null))));
+
+        OutboundResponse response = router.dispatch(request, context);
+
+        Assertions.assertNull(response.getEntity());
+        Assertions.assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+    }
+
+    private ResourceRouter.RootResource rootResource(UriTemplate uriTemplate) {
         ResourceRouter.RootResource unmatched = Mockito.mock(ResourceRouter.RootResource.class);
-        Mockito.when(unmatched.getUriTemplate()).thenReturn(unmatchedUriTemplate);
+        Mockito.when(unmatched.getUriTemplate()).thenReturn(uriTemplate);
+        Mockito.when(unmatched.matche(eq("/1"), eq("GET"), eq(new String[]{MediaType.WILDCARD}), eq(builder))).thenReturn(Optional.empty());
         return unmatched;
     }
 
-    private static UriTemplate unmatched(String path) {
+    private UriTemplate unmatched(String path) {
         UriTemplate unmatchedUriTemplate = Mockito.mock(UriTemplate.class);
         Mockito.when(unmatchedUriTemplate.match(eq(path))).thenReturn(Optional.empty());
         return unmatchedUriTemplate;
     }
 
-    private ResourceRouter.RootResource rootResource(UriTemplate matchedUriTemplate, ResourceRouter.ResourceMethod method) {
-        ResourceRouter.RootResource matched = rootResource(matchedUriTemplate);
+    private ResourceRouter.RootResource rootResource(UriTemplate uriTemplate, ResourceRouter.ResourceMethod method) {
+        ResourceRouter.RootResource matched = Mockito.mock(ResourceRouter.RootResource.class);
+        Mockito.when(matched.getUriTemplate()).thenReturn(uriTemplate);
         Mockito.when(matched.matche(eq("/1"), eq("GET"), eq(new String[]{MediaType.WILDCARD}), eq(builder))).thenReturn(Optional.of(method));
         return matched;
     }
@@ -98,7 +131,7 @@ public class ResourceDispatcherTest {
         return method;
     }
 
-    private static UriTemplate matched(String path, UriTemplate.MatchResult result) {
+    private UriTemplate matched(String path, UriTemplate.MatchResult result) {
         UriTemplate matchedUriTemplate = Mockito.mock(UriTemplate.class);
         Mockito.when(matchedUriTemplate.match(eq(path))).thenReturn(Optional.of(result));
         return matchedUriTemplate;

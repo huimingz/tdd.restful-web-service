@@ -18,7 +18,7 @@ public class StubResponseBuilder extends Response.ResponseBuilder {
     public Response build() {
         OutboundResponse response = Mockito.mock(OutboundResponse.class);
         Mockito.when(response.getEntity()).thenReturn(this.entity);
-        Mockito.when(response.getStatus()).thenReturn(Response.Status.OK.getStatusCode());
+        Mockito.when(response.getStatus()).thenReturn(this.status);
         return response;
     }
 
@@ -29,7 +29,8 @@ public class StubResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder status(int status) {
-        return null;
+        this.status = status;
+        return this;
     }
 
     @Override
