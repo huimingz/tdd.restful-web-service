@@ -137,7 +137,7 @@ public class ResourceDispatcherTest {
         }
 
         @Override
-        public int compareTo(Object o) {
+        public int compareTo(UriTemplate.MatchResult o) {
             return this.order.compareTo(((FakeMatchResult) o).order);
         }
     }

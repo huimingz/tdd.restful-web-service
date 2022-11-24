@@ -60,3 +60,34 @@ class DefaultResourceRouter implements ResourceRouter {
         }
     }
 }
+
+
+class RootResourceClass implements ResourceRouter.RootResource {
+
+    private Class<?> usersClass;
+
+    public RootResourceClass(Class<?> usersClass) {
+
+        this.usersClass = usersClass;
+    }
+
+    @Override
+    public Optional<ResourceRouter.ResourceMethod> matche(String path, String method, String[] mediaTypes, UriInfoBuilder builder) {
+        return Optional.empty();
+    }
+
+    @Override
+    public UriTemplate getUriTemplate() {
+        return new UriTemplate() {
+            @Override
+            public Optional<MatchResult> match(String path) {
+                return Optional.empty();
+            }
+
+            @Override
+            public int compareTo(MatchResult o) {
+                return 0;
+            }
+        };
+    }
+}
