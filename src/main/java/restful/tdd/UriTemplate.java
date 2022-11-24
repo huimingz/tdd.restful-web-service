@@ -1,7 +1,6 @@
 package restful.tdd;
 
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -18,29 +17,57 @@ interface UriTemplate extends Comparable<UriTemplate.MatchResult> {
 }
 
 
-
 class UriTemplateString implements UriTemplate {
 
+    private static final String LEFT_BRACKET = "\\{";
+    private static final String RIGHT_BRACKET = "}";
+    private static final String VARIABLE_BANE = "\\w[\\w\\.-]*";
+    private static final String NON_BRACKETS = "[^\\{}]+";
+    public static final String DEFAULT_VARIABLE_PATTERN = "([^/]+?)";
+
+
+    private int variableStartFrom = 2;
+
     private final Pattern pattern;
-    private final Pattern variable = Pattern.compile("\\{\\w[\\w\\.-]*\\}");;
+    private final Pattern variable = Pattern.compile(LEFT_BRACKET + group(VARIABLE_BANE) + group(":" + group(NON_BRACKETS)) + "?" + RIGHT_BRACKET);
+    private static final int VARIABLE_NAME_GROUP = 1;
+    private static final int VARIABLE_PATTERN_GROUP = 3;
+    private final List<String> variables = new ArrayList<>();
+
+    private static String group(String pattern) {
+        return "(" + pattern + ")";
+    }
 
     public UriTemplateString(String template) {
-        String templateWithVariable = variable(template);
-        pattern = Pattern.compile("(" + templateWithVariable + ")" + "(/.*)?");
+        pattern = Pattern.compile(group(variable(template)) + "(/.*)?");
+        variableStartFrom = 2;
     }
 
     private String variable(String template) {
-        return variable.matcher(template).replaceAll("([^/]+?)");
+        return variable.matcher(template).replaceAll(result -> {
+            String variableName = result.group(VARIABLE_NAME_GROUP);
+            String pattern = result.group(VARIABLE_PATTERN_GROUP);
+
+            if (variables.contains(variableName))
+                throw new IllegalArgumentException("duplicate variable " + variableName);
+
+            variables.add(variableName);
+            return pattern == null ? DEFAULT_VARIABLE_PATTERN : group(pattern);
+        });
     }
 
     @Override
     public Optional<MatchResult> match(String path) {
         Matcher matcher = pattern.matcher(path);
-        if (!matcher.matches()) {
-            return Optional.empty();
-        }
+        if (!matcher.matches()) return Optional.empty();
 
         int count = matcher.groupCount();
+        Map<String, String> parameters = new HashMap<>();
+
+        for (int i = 0; i < variables.size(); i++) {
+            parameters.put(variables.get(i), matcher.group(variableStartFrom + i));
+        }
+
 
         return Optional.of(new MatchResult() {
 
@@ -61,7 +88,7 @@ class UriTemplateString implements UriTemplate {
 
             @Override
             public Map<String, String> getMatchedPathParameters() {
-                return null;
+                return parameters;
             }
         });
     }
