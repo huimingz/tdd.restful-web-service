@@ -17,7 +17,7 @@ interface UriTemplate extends Comparable<UriTemplate.MatchResult> {
 }
 
 
-class UriTemplateString implements UriTemplate {
+class PathTemplate implements UriTemplate {
 
     private static final String LEFT_BRACKET = "\\{";
     private static final String RIGHT_BRACKET = "}";
@@ -39,7 +39,7 @@ class UriTemplateString implements UriTemplate {
         return "(" + pattern + ")";
     }
 
-    public UriTemplateString(String template) {
+    public PathTemplate(String template) {
         pattern = Pattern.compile(group(variable(template)) + "(/.*)?");
         variableStartFrom = 2;
     }
@@ -54,24 +54,17 @@ class UriTemplateString implements UriTemplate {
 
             variables.add(variableName);
             if (pattern != null) {
-                this.specificPatternCount ++;
+                this.specificPatternCount++;
                 return group(pattern);
             }
             return DEFAULT_VARIABLE_PATTERN;
         });
     }
 
-    @Override
-    public Optional<MatchResult> match(String path) {
-        Matcher matcher = pattern.matcher(path);
-        if (!matcher.matches()) return Optional.empty();
-
-        return Optional.of(new PathMatchResult(matcher));
-    }
 
     class PathMatchResult implements MatchResult {
 
-        private final int specificPrameterCount;
+        private final int specificParameterCount;
         private int count;
         private int matchLiteralCount;
         private Matcher matcher;
@@ -81,7 +74,7 @@ class UriTemplateString implements UriTemplate {
             this.matcher = matcher;
             this.count = matcher.groupCount();
             this.matchLiteralCount = matcher.group(1).length();
-            this.specificPrameterCount = specificPatternCount;
+            this.specificParameterCount = specificPatternCount;
 
             for (int i = 0; i < variables.size(); i++) {
                 this.parameters.put(variables.get(i), matcher.group(variableStartFrom + i));
@@ -111,10 +104,18 @@ class UriTemplateString implements UriTemplate {
             if (matchLiteralCount < result.matchLiteralCount) return 1;
             if (parameters.size() > result.parameters.size()) return -1;
             if (parameters.size() < result.parameters.size()) return 1;
-            if (specificPrameterCount > result.specificPrameterCount) return -1;
-            if (specificPrameterCount < result.specificPrameterCount) return 1;
+            if (specificParameterCount > result.specificParameterCount) return -1;
+            if (specificParameterCount < result.specificParameterCount) return 1;
             return 0;
         }
+    }
+
+    @Override
+    public Optional<MatchResult> match(String path) {
+        Matcher matcher = pattern.matcher(path);
+        if (!matcher.matches()) return Optional.empty();
+
+        return Optional.of(new PathMatchResult(matcher));
     }
 
     @Override
