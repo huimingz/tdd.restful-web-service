@@ -213,7 +213,7 @@ public class ResourceDispatcherSpikeTest {
         @Override
         public OutboundResponse dispatch(HttpServletRequest request, ResourceContext resourceContext) {
 //            UriInfoBuilder builder = runtime.createUriBuilder(request);
-            ResourceMethod resourceMethod = rootResource.stream().map(r -> r.matche(request.getServletPath(), "GET", new String[0], null)).filter(o -> o.isPresent()).findFirst().get().get();
+            ResourceMethod resourceMethod = rootResource.stream().map(r -> r.match(request.getServletPath(), "GET", new String[0], null)).filter(o -> o.isPresent()).findFirst().get().get();
             try {
                 GenericEntity entity = resourceMethod.call(resourceContext, null);
                 return (OutboundResponse) Response.ok(entity).build();
@@ -249,7 +249,7 @@ public class ResourceDispatcherSpikeTest {
         }
 
         @Override
-        public Optional<ResourceRouter.ResourceMethod> matche(String path, String method, String[] mediaTypes, UriInfoBuilder builder) {
+        public Optional<ResourceRouter.ResourceMethod> match(String path, String method, String[] mediaTypes, UriInfoBuilder builder) {
             if (!pattern.matcher(path).matches()) {
                 return Optional.empty();
             }
@@ -276,6 +276,11 @@ public class ResourceDispatcherSpikeTest {
                 throw new RuntimeException(e);
             }
         }
+
+        @Override
+        public UriTemplate getUriTemplate() {
+            return null;
+        }
     }
 
     static class SubResourceLocation implements ResourceRouter.ResourceMethod {
@@ -294,11 +299,16 @@ public class ResourceDispatcherSpikeTest {
             Object resource = context.getResource(resourceClass);
             try {
                 Object subResource = method.invoke(resource);
-                new SubResource(subResource).matche(builder.getUnmatchedPath(), "GET", mediaTypes, builder).get().call(context, builder);
+                new SubResource(subResource).match(builder.getUnmatchedPath(), "GET", mediaTypes, builder).get().call(context, builder);
                 return new GenericEntity<>(subResource, method.getGenericReturnType());
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
+        }
+
+        @Override
+        public UriTemplate getUriTemplate() {
+            return null;
         }
     }
 
@@ -312,7 +322,7 @@ public class ResourceDispatcherSpikeTest {
         }
 
         @Override
-        public Optional<ResourceRouter.ResourceMethod> matche(String path, String method, String[] mediaTypes, UriInfoBuilder builder) {
+        public Optional<ResourceRouter.ResourceMethod> match(String path, String method, String[] mediaTypes, UriInfoBuilder builder) {
             return Optional.empty();
         }
     }
