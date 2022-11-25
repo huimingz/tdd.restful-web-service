@@ -33,6 +33,7 @@ class UriTemplateString implements UriTemplate {
     private static final int VARIABLE_NAME_GROUP = 1;
     private static final int VARIABLE_PATTERN_GROUP = 3;
     private final List<String> variables = new ArrayList<>();
+    private int specificPatternCount = 0;
 
     private static String group(String pattern) {
         return "(" + pattern + ")";
@@ -52,7 +53,11 @@ class UriTemplateString implements UriTemplate {
                 throw new IllegalArgumentException("duplicate variable " + variableName);
 
             variables.add(variableName);
-            return pattern == null ? DEFAULT_VARIABLE_PATTERN : group(pattern);
+            if (pattern != null) {
+                this.specificPatternCount ++;
+                return group(pattern);
+            }
+            return DEFAULT_VARIABLE_PATTERN;
         });
     }
 
@@ -61,36 +66,55 @@ class UriTemplateString implements UriTemplate {
         Matcher matcher = pattern.matcher(path);
         if (!matcher.matches()) return Optional.empty();
 
-        int count = matcher.groupCount();
-        Map<String, String> parameters = new HashMap<>();
+        return Optional.of(new PathMatchResult(matcher));
+    }
 
-        for (int i = 0; i < variables.size(); i++) {
-            parameters.put(variables.get(i), matcher.group(variableStartFrom + i));
+    class PathMatchResult implements MatchResult {
+
+        private final int specificPrameterCount;
+        private int count;
+        private int matchLiteralCount;
+        private Matcher matcher;
+        private Map<String, String> parameters = new HashMap<>();
+
+        public PathMatchResult(Matcher matcher) {
+            this.matcher = matcher;
+            this.count = matcher.groupCount();
+            this.matchLiteralCount = matcher.group(1).length();
+            this.specificPrameterCount = specificPatternCount;
+
+            for (int i = 0; i < variables.size(); i++) {
+                this.parameters.put(variables.get(i), matcher.group(variableStartFrom + i));
+                this.matchLiteralCount -= matcher.group(variableStartFrom + i).length();
+            }
         }
 
+        @Override
+        public String getMatchedPath() {
+            return matcher.group(1);
+        }
 
-        return Optional.of(new MatchResult() {
+        @Override
+        public String getRemaining() {
+            return matcher.group(count);
+        }
 
-            @Override
-            public int compareTo(MatchResult o) {
-                return 0;
-            }
+        @Override
+        public Map<String, String> getMatchedPathParameters() {
+            return parameters;
+        }
 
-            @Override
-            public String getMatchedPath() {
-                return matcher.group(1);
-            }
-
-            @Override
-            public String getRemaining() {
-                return matcher.group(count);
-            }
-
-            @Override
-            public Map<String, String> getMatchedPathParameters() {
-                return parameters;
-            }
-        });
+        @Override
+        public int compareTo(MatchResult o) {
+            PathMatchResult result = (PathMatchResult) o;
+            if (matchLiteralCount > result.matchLiteralCount) return -1;
+            if (matchLiteralCount < result.matchLiteralCount) return 1;
+            if (parameters.size() > result.parameters.size()) return -1;
+            if (parameters.size() < result.parameters.size()) return 1;
+            if (specificPrameterCount > result.specificPrameterCount) return -1;
+            if (specificPrameterCount < result.specificPrameterCount) return 1;
+            return 0;
+        }
     }
 
     @Override
