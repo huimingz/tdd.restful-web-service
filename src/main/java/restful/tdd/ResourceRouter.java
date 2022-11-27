@@ -20,19 +20,19 @@ interface ResourceRouter {
         Optional<ResourceMethod> match(UriTemplate.MatchResult result, String method, String[] mediaTypes, UriInfoBuilder builder);
     }
 
-    interface RootResource extends Resource {
-        UriTemplate getUriTemplate();
+    interface RootResource extends Resource, UriHandler {
     }
 
-    interface ResourceMethod {
+    interface ResourceMethod extends UriHandler {
         GenericEntity<?> call(ResourceContext context, UriInfoBuilder builder);
-
-        UriTemplate getUriTemplate();
 
         String getHttpMethod();
     }
 
-    interface SubResourceLocator {
+    interface SubResourceLocator extends UriHandler {
+    }
+
+    interface UriHandler {
         UriTemplate getUriTemplate();
     }
 }
@@ -95,16 +95,6 @@ class ResourceMethods {
         this.resourceMethods = getResourceMethods(methods);
     }
 
-    public Optional<ResourceRouter.ResourceMethod> findResourceMethods(String method, String path) {
-        return Optional.ofNullable(resourceMethods.get(method))
-                .flatMap(methods -> methods.stream()
-                        .map(m -> ResourceMethods.match(path, m))
-                        .filter(ResourceMethods.Result::isMatched)
-                        .sorted()
-                        .findFirst()
-                        .map(ResourceMethods.Result::resourceMethod));
-    }
-
     private static Map<String, List<ResourceRouter.ResourceMethod>> getResourceMethods(Method[] methods) {
         return Arrays.stream(methods)
                 .filter(m -> Arrays.stream(m.getAnnotations()).anyMatch(a -> a.annotationType().isAnnotationPresent(HttpMethod.class)))
@@ -112,24 +102,39 @@ class ResourceMethods {
                 .collect(Collectors.groupingBy(ResourceRouter.ResourceMethod::getHttpMethod));
     }
 
-    private static Result match(String path, ResourceRouter.ResourceMethod method) {
-        return new Result(method.getUriTemplate().match(path), method);
-    }
-
-    static record Result(Optional<UriTemplate.MatchResult> matched,
-                         ResourceRouter.ResourceMethod resourceMethod) implements Comparable<Result> {
-
-        public boolean isMatched() {
-            return matched.map(r -> r.getRemaining() == null).orElse(false);
-        }
-
-        @Override
-        public int compareTo(Result o) {
-            return matched.flatMap(x -> o.matched.map(x::compareTo)).orElse(0);
-        }
+    public Optional<ResourceRouter.ResourceMethod> findResourceMethods(String method, String path) {
+        return Optional.ofNullable(resourceMethods.get(method)).flatMap(methods -> Result.match(path, methods, r -> r.getRemaining() == null));
     }
 }
 
+record Result<T extends ResourceRouter.UriHandler>(
+        Optional<UriTemplate.MatchResult> matched,
+        T handler,
+        Function<UriTemplate.MatchResult, Boolean> matchFunction) implements Comparable<Result<T>> {
+
+    // T, K, V, E, ?
+    public static <T extends ResourceRouter.UriHandler> Optional<T> match(String path, List<T> handlers, Function<UriTemplate.MatchResult, Boolean> matchFunction) {
+        return handlers.stream()
+                .map(m -> new Result<>(m.getUriTemplate().match(path), m, matchFunction))
+                .filter(Result::isMatched)
+                .sorted()
+                .findFirst()
+                .map(Result::handler);
+    }
+
+    public static <T extends ResourceRouter.UriHandler> Optional<T> match(String path, List<T> handlers) {
+        return match(path, handlers, r -> true);
+    }
+
+    public boolean isMatched() {
+        return matched.map(matchFunction::apply).orElse(false);
+    }
+
+    @Override
+    public int compareTo(Result<T> o) {
+        return matched.flatMap(x -> o.matched.map(x::compareTo)).orElse(0);
+    }
+}
 
 class RootResourceClass implements ResourceRouter.RootResource {
 
@@ -223,7 +228,7 @@ class SubResourceLocators {
     }
 
     public Optional<ResourceRouter.SubResourceLocator> findSubResource(String path) {
-        return subResourceLocators.stream().filter(l -> l.getUriTemplate().match(path).isPresent()).findFirst();
+        return Result.match(path, subResourceLocators);
     }
 
     static class DefaultSubResourceLocator implements ResourceRouter.SubResourceLocator {
