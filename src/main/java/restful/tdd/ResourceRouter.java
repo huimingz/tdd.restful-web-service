@@ -10,6 +10,7 @@ import jakarta.ws.rs.core.Response;
 
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 interface ResourceRouter {
@@ -29,6 +30,10 @@ interface ResourceRouter {
         UriTemplate getUriTemplate();
 
         String getHttpMethod();
+    }
+
+    interface SubResourceLocator {
+        UriTemplate getUriTemplate();
     }
 }
 
@@ -202,5 +207,42 @@ class SubResource implements ResourceRouter.Resource {
     public Optional<ResourceRouter.ResourceMethod> match(UriTemplate.MatchResult result, String method, String[] mediaTypes, UriInfoBuilder builder) {
         String remaining = Optional.ofNullable(result.getRemaining()).orElse("");
         return resourceMethods.findResourceMethods(method, remaining);
+    }
+}
+
+
+class SubResourceLocators {
+    private final List<ResourceRouter.SubResourceLocator> subResourceLocators;
+
+    public SubResourceLocators(Method[] methods) {
+        subResourceLocators = Arrays.stream(methods).filter(m -> {
+                    return m.isAnnotationPresent(Path.class) && Arrays.stream(m.getAnnotations()).noneMatch(a -> a.annotationType().isAnnotationPresent(HttpMethod.class));
+                })
+                .map((Function<Method, ResourceRouter.SubResourceLocator>) DefaultSubResourceLocator::new)
+                .toList();
+    }
+
+    public Optional<ResourceRouter.SubResourceLocator> findSubResource(String path) {
+        return subResourceLocators.stream().filter(l -> l.getUriTemplate().match(path).isPresent()).findFirst();
+    }
+
+    static class DefaultSubResourceLocator implements ResourceRouter.SubResourceLocator {
+        private PathTemplate uriTemplate;
+        private Method method;
+
+        public DefaultSubResourceLocator(Method method) {
+            this.method = method;
+            this.uriTemplate = new PathTemplate(method.getAnnotation(Path.class).value());
+        }
+
+        @Override
+        public UriTemplate getUriTemplate() {
+            return uriTemplate;
+        }
+
+        @Override
+        public String toString() {
+            return method.getDeclaringClass().getSimpleName() + "." + method.getName();
+        }
     }
 }
