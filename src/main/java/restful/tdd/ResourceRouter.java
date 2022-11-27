@@ -101,13 +101,14 @@ class RootResourceClass implements ResourceRouter.RootResource {
 
     @Override
     public Optional<ResourceRouter.ResourceMethod> match(UriTemplate.MatchResult result, String method, String[] mediaTypes, UriInfoBuilder builder) {
-        String remaining = result.getRemaining();
-        return resourceMethods.get(method).stream()
-                .map(m -> match(remaining, m))
-                .filter(Result::isMatched)
-                .sorted()
-                .findFirst()
-                .map(Result::resourceMethod);
+        String remaining = Optional.ofNullable(result.getRemaining()).orElse("");
+        return Optional.ofNullable(resourceMethods.get(method))
+                .flatMap(methods -> methods.stream()
+                        .map(m -> match(remaining, m))
+                        .filter(Result::isMatched)
+                        .sorted()
+                        .findFirst()
+                        .map(Result::resourceMethod));
     }
 
     @Override
@@ -140,7 +141,7 @@ class RootResourceClass implements ResourceRouter.RootResource {
 
         public DefaultResourceMethod(Method method) {
             this.method = method;
-            this.uriTemplate = new PathTemplate(method.getAnnotation(Path.class).value());
+            this.uriTemplate = new PathTemplate(Optional.ofNullable(method.getAnnotation(Path.class)).map(a -> a.value()).orElse(""));
             this.httpMethod = Arrays.stream(method.getAnnotations())
                     .filter(a -> a.annotationType().isAnnotationPresent(HttpMethod.class))
                     .findFirst().get().annotationType().getAnnotation(HttpMethod.class).value();
