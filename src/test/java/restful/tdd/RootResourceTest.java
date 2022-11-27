@@ -1,6 +1,7 @@
 package restful.tdd;
 
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
@@ -21,11 +22,18 @@ public class RootResourceTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"/messages/hello,GET,Messages.hello", "/messages/ah,GET,Messages.ah"})
+    @CsvSource({
+            "/messages/hello,GET,Messages.hello",
+            "/messages/ah,GET,Messages.ah",
+            "/messages/hello,POST,Messages.postHello",
+            "/messages/topics/1234,GET,Messages.topic1234"
+    })
     public void should_match_resource_method(String path, String httpMethod, String resourceMethod) {
         ResourceRouter.RootResource resource = new RootResourceClass(Messages.class);
 
-        ResourceRouter.ResourceMethod method = resource.match(path, httpMethod, new String[]{MediaType.TEXT_PLAIN}, Mockito.mock(UriInfoBuilder.class)).get();
+        UriTemplate.MatchResult result = resource.getUriTemplate().match(path).get();
+
+        ResourceRouter.ResourceMethod method = resource.match(result, httpMethod, new String[]{MediaType.TEXT_PLAIN}, Mockito.mock(UriInfoBuilder.class)).get();
 
         Assertions.assertEquals(resourceMethod, method.toString());
     }
@@ -48,6 +56,27 @@ public class RootResourceTest {
         @Produces(MediaType.TEXT_PLAIN)
         public String hello() {
             return "hello";
+        }
+
+        @POST
+        @Path("/hello")
+        @Produces(MediaType.TEXT_PLAIN)
+        public String postHello() {
+            return "hello";
+        }
+
+        @GET
+        @Path("/topics/{id}")
+        @Produces(MediaType.TEXT_PLAIN)
+        public String topicId() {
+            return "topicId";
+        }
+
+        @GET
+        @Path("/topics/1234")
+        @Produces(MediaType.TEXT_PLAIN)
+        public String topic1234() {
+            return "topic1234";
         }
     }
 }
