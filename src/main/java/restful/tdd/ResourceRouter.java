@@ -49,7 +49,7 @@ class DefaultResourceRouter implements ResourceRouter {
         UriInfoBuilder uri = runtime.createUriInfoBuilder(request);
 
         List<RootResource> rootResources_ = rootResources;
-        Optional<ResourceMethod> method = UriHandlers.match(path, rootResources_, r -> true, r -> findResourceMethod(r, request, uri));
+        Optional<ResourceMethod> method = UriHandlers.mapMatched(path, rootResources_, (result, resource) -> findResourceMethod(request, uri, result, resource));
 
         if (method.isEmpty()) {
             return (OutboundResponse) Response.status(Response.Status.NOT_FOUND).build();
@@ -58,8 +58,8 @@ class DefaultResourceRouter implements ResourceRouter {
         return (OutboundResponse) method.map(m -> m.call(resourceContext, uri)).map(entity -> Response.ok(entity).build()).orElseGet(() -> Response.noContent().build());
     }
 
-    private Optional<ResourceMethod> findResourceMethod(Optional<UriHandlers.Result<RootResource>> result, HttpServletRequest request, UriInfoBuilder uri) {
-        return result.flatMap(r -> r.handler().match(r.matched().get(), request.getMethod(), Collections.list(request.getHeaders(HttpHeaders.ACCEPT)).toArray(String[]::new), uri));
+    private static Optional<ResourceMethod> findResourceMethod(HttpServletRequest request, UriInfoBuilder uri, Optional<UriTemplate.MatchResult> matched, RootResource handler) {
+        return handler.match(matched.get(), request.getMethod(), Collections.list(request.getHeaders(HttpHeaders.ACCEPT)).toArray(String[]::new), uri);
     }
 
 }

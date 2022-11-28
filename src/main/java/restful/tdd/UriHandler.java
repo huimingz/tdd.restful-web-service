@@ -2,6 +2,7 @@ package restful.tdd;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public interface UriHandler {
@@ -11,23 +12,28 @@ public interface UriHandler {
 class UriHandlers {
 
     // T, K, V, E, R, ?
-    public static <T extends UriHandler, R> Optional<R> match(String path, List<T> handlers, Function<UriTemplate.MatchResult, Boolean> matchFunction, Function<Optional<Result<T>>, Optional<R>> mapper) {
-        return mapper.apply(handlers.stream()
-                .map(m -> new Result<>(m.getUriTemplate().match(path), m, matchFunction))
-                .filter(Result::isMatched)
-                .sorted()
-                .findFirst());
+
+    public static <T extends UriHandler, R> Optional<R> mapMatched(String path, List<T> handlers, BiFunction<Optional<UriTemplate.MatchResult>, T, Optional<R>> mapper) {
+        return matched(path, handlers, r -> true).flatMap(r -> mapper.apply(r.matched(), r.handler()));
     }
 
     public static <T extends UriHandler> Optional<T> match(String path, List<T> handlers, Function<UriTemplate.MatchResult, Boolean> matchFunction) {
-        return match(path, handlers, matchFunction, r -> r.map(Result::handler));
+        return matched(path, handlers, matchFunction).map(Result::handler);
     }
 
     public static <T extends UriHandler> Optional<T> match(String path, List<T> handlers) {
         return match(path, handlers, r -> true);
     }
 
-    static record Result<T extends UriHandler>(
+    private static <T extends UriHandler> Optional<Result<T>> matched(String path, List<T> handlers, Function<UriTemplate.MatchResult, Boolean> matchFunction) {
+        return handlers.stream()
+                .map(m -> new Result<>(m.getUriTemplate().match(path), m, matchFunction))
+                .filter(Result::isMatched)
+                .sorted()
+                .findFirst();
+    }
+
+    private record Result<T extends UriHandler>(
             Optional<UriTemplate.MatchResult> matched,
             T handler,
             Function<UriTemplate.MatchResult, Boolean> matchFunction) implements Comparable<Result<T>> {
