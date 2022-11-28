@@ -66,6 +66,17 @@ public class RootResourceTest {
         Assertions.assertTrue(method.isEmpty());
     }
 
+    @Test
+    public void should_add_last_match_resource_to_uri_info_builder() {
+        StubUriInfoBuilder uriInfoBuilder = new StubUriInfoBuilder();
+        RootResourceClass resource = new RootResourceClass(Messages.class);
+        UriTemplate.MatchResult result = resource.getUriTemplate().match("/messages").get();
+
+        Optional<ResourceRouter.ResourceMethod> method = resource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, uriInfoBuilder);
+
+        Assertions.assertTrue(uriInfoBuilder.getLastMatchedResource() instanceof Messages);
+    }
+
     // TODO: if sub resource locator matches uri, using it to do follow up matching.
     // TODO: if no method / sub resource locator matches, return 404.
     // TODO: if resource class does not have a path annotation, throw illegal argument.
