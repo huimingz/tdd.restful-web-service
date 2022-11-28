@@ -30,6 +30,7 @@ interface ResourceRouter {
     }
 
     interface SubResourceLocator extends UriHandler {
+        Resource getSubResource(UriInfoBuilder uriInfoBuilder);
     }
 }
 
@@ -195,6 +196,17 @@ class SubResourceLocators {
         @Override
         public String toString() {
             return method.getDeclaringClass().getSimpleName() + "." + method.getName();
+        }
+
+        @Override
+        public ResourceRouter.Resource getSubResource(UriInfoBuilder uriInfoBuilder) {
+            Object resource = uriInfoBuilder.getLastMatchedResource();
+            try {
+                Object subResource = method.invoke(resource);
+                return new SubResource(subResource);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 }
