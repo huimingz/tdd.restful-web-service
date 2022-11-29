@@ -30,7 +30,7 @@ public class RootResourceTest {
 
     @Test
     public void should_get_uri_template_from_path_annotation() {
-        ResourceRouter.RootResource resource = new RootResourceClass(Messages.class);
+        ResourceRouter.Resource resource = new RootResourceHandler(Messages.class);
         UriTemplate template = resource.getUriTemplate();
 
         Assertions.assertTrue(template.match("/messages/hello").isPresent());
@@ -44,7 +44,7 @@ public class RootResourceTest {
             """
     )
     public void should_match_resource_method_in_root_resource(String httpMethod, String path, String resourceMethod, String context) {
-        ResourceRouter.RootResource resource = new RootResourceClass(Messages.class);
+        ResourceRouter.Resource resource = new RootResourceHandler(Messages.class);
         StubUriInfoBuilder uriInfoBuilder = new StubUriInfoBuilder();
 
         UriTemplate.MatchResult result = resource.getUriTemplate().match(path).get();
@@ -55,7 +55,7 @@ public class RootResourceTest {
 
     @Test
     public void should_match_resource_method_in_sub_resource() {
-        ResourceRouter.Resource resource = new SubResource(new Message());
+        ResourceRouter.Resource resource = new RootResourceHandler(new Message(), Mockito.mock(UriTemplate.class));
         UriTemplate.MatchResult result = Mockito.mock(UriTemplate.MatchResult.class);
         Mockito.when(result.getRemaining()).thenReturn("/content");
 
@@ -65,9 +65,10 @@ public class RootResourceTest {
     @ParameterizedTest(name = "{2}")
     @CsvSource(textBlock = """
             GET,        /messages/hello,                No matched resource method
+            GET,        /messages/1/header,             No matched sub-resource method
             """)
     public void should_return_empty_if_not_not_match_in_root_resource(String httpMethod, String path, String context) {
-        ResourceRouter.RootResource resource = new RootResourceClass(Messages.class);
+        ResourceRouter.Resource resource = new RootResourceHandler(Messages.class);
         StubUriInfoBuilder uriInfoBuilder = new StubUriInfoBuilder();
 
         UriTemplate.MatchResult result = resource.getUriTemplate().match(path).get();
@@ -79,7 +80,7 @@ public class RootResourceTest {
     @Test
     public void should_add_last_match_resource_to_uri_info_builder() {
         StubUriInfoBuilder uriInfoBuilder = new StubUriInfoBuilder();
-        RootResourceClass resource = new RootResourceClass(Messages.class);
+        RootResourceHandler resource = new RootResourceHandler(Messages.class);
         UriTemplate.MatchResult result = resource.getUriTemplate().match("/messages").get();
 
         Optional<ResourceRouter.ResourceMethod> method = resource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, resourceContext, uriInfoBuilder);

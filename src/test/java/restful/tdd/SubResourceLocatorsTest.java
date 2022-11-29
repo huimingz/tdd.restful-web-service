@@ -5,46 +5,43 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.container.ResourceContext;
 import jakarta.ws.rs.core.MediaType;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mockito;
 
 import java.util.Optional;
 
 public class SubResourceLocatorsTest {
 
-    @Test
-    public void should_match_path_with_uri() {
+    @ParameterizedTest(name = "{2}")
+    @CsvSource(textBlock = """
+            /hello,              hello,             fully matched with URI
+            /topics/1234,        1234,              multiple matched choices   
+            """)
+    public void should_match_path_with_uri(String path, String message, String context) {
+        StubUriInfoBuilder builder = new StubUriInfoBuilder();
+        builder.addMatchedResult(new Messages());
         SubResourceLocators locators = new SubResourceLocators(Messages.class.getMethods());
 
-        ResourceRouter.SubResourceLocator locator = locators.findSubResource("/hello").get();
+        Optional<ResourceRouter.ResourceMethod> method = locators.findSubResourceMethods(path, "GET", new String[]{MediaType.TEXT_PLAIN}, Mockito.mock(ResourceContext.class), builder);
 
-        Assertions.assertEquals("Messages.hello", locator.toString());
+        Assertions.assertTrue(method.isPresent());
+        Assertions.assertEquals(message, ((Message) builder.getLastMatchedResource()).message);
     }
 
-    @Test
-    public void should_return_empty_if_not_match_uri() {
+    @ParameterizedTest(name = "{1}")
+    @CsvSource(textBlock = """
+            /missing,               unmatched resource method
+            /hello/content,         unmatched sub-resource method
+            """)
+    public void should_return_empty_if_not_match_uri(String path, String context) {
+        StubUriInfoBuilder builder = new StubUriInfoBuilder();
+        builder.addMatchedResult(new Messages());
         SubResourceLocators locators = new SubResourceLocators(Messages.class.getMethods());
 
-        Optional<ResourceRouter.SubResourceLocator> locator = locators.findSubResource("/missing");
+        Optional<ResourceRouter.ResourceMethod> method = locators.findSubResourceMethods(path, "GET", new String[]{MediaType.TEXT_PLAIN}, Mockito.mock(ResourceContext.class), builder);
 
-        Assertions.assertTrue(locator.isEmpty());
-    }
-
-    @Test
-    public void should_call_locator_method_to_generate_sub_resource() {
-        UriTemplate.MatchResult result = Mockito.mock(UriTemplate.MatchResult.class);
-        Mockito.when(result.getRemaining()).thenReturn(null);
-        UriInfoBuilder uriInfoBuilder = new StubUriInfoBuilder();
-        uriInfoBuilder.addMatchedResult(new Messages());
-
-        SubResourceLocators locators = new SubResourceLocators(Messages.class.getMethods());
-        ResourceRouter.SubResourceLocator subResourceLocator = locators.findSubResource("/hello").get();
-
-        ResourceRouter.Resource subResource = subResourceLocator.getSubResource(Mockito.mock(ResourceContext.class), uriInfoBuilder);
-        ResourceRouter.ResourceMethod method = subResource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, null, uriInfoBuilder).get();
-
-        Assertions.assertEquals("Message.content", method.toString());
-        Assertions.assertEquals("hello", (( Message) uriInfoBuilder.getLastMatchedResource()).message);
+        Assertions.assertFalse(method.isPresent());
     }
 
     @Path("/messages")
