@@ -153,18 +153,20 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
 
 class SubResource implements ResourceRouter.Resource {
 
+    private SubResourceLocators subResourceLocators;
     private ResourceMethods resourceMethods;
     private Object subResource;
 
     public SubResource(Object subResource) {
         this.subResource = subResource;
         this.resourceMethods = new ResourceMethods(subResource.getClass().getMethods());
+        this.subResourceLocators = new SubResourceLocators(subResource.getClass().getMethods());
     }
 
     @Override
     public Optional<ResourceRouter.ResourceMethod> match(UriTemplate.MatchResult result, String method, String[] mediaTypes, ResourceContext resourceContext, UriInfoBuilder builder) {
         String remaining = Optional.ofNullable(result.getRemaining()).orElse("");
-        return resourceMethods.findResourceMethods(method, remaining);
+        return resourceMethods.findResourceMethods(method, remaining).or(() -> subResourceLocators.findSubResourceMethods(remaining, method, mediaTypes, resourceContext, builder));
     }
 }
 
@@ -184,8 +186,8 @@ class SubResourceLocators {
         return UriHandlers.match(path, subResourceLocators);
     }
 
-    public Optional<ResourceRouter.ResourceMethod> findSubResourceMethods(String path, String method, String[] mediaTypes, ResourceContext context, UriInfoBuilder builder) {
-        return UriHandlers.mapMatched(path, subResourceLocators, (result, locator) -> locator.getSubResource(context, builder).match(result.get(), method, mediaTypes, context, builder));
+    public Optional<ResourceRouter.ResourceMethod> findSubResourceMethods(String path, String method, String[] mediaTypes, ResourceContext resourceContext, UriInfoBuilder builder) {
+        return UriHandlers.mapMatched(path, subResourceLocators, (result, locator) -> locator.getSubResource(resourceContext, builder).match(result.get(), method, mediaTypes, resourceContext, builder));
     }
 
     static class DefaultSubResourceLocator implements ResourceRouter.SubResourceLocator {

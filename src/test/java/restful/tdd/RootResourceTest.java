@@ -39,7 +39,8 @@ public class RootResourceTest {
     @ParameterizedTest(name = "{3}")
     @CsvSource(textBlock = """
             GET,        /messages,                      Messages.get,               Map to resource method
-            GET,        /messages/1/content,            Message.content,           Map to sub-resource method
+            GET,        /messages/1/content,            Message.content,            Map to sub-resource method
+            GET,        /messages/1/body,               MessageBody.get,            Map to sub-sub -resource method
             """
     )
     public void should_match_resource_method_in_root_resource(String httpMethod, String path, String resourceMethod, String context) {
@@ -114,6 +115,19 @@ public class RootResourceTest {
         @Produces(MediaType.TEXT_PLAIN)
         public String content() {
             return "content";
+        }
+
+        @Path("/body")
+        public MessageBody body() {
+            return new MessageBody();
+        }
+    }
+
+    static class MessageBody {
+        @GET
+        @Produces(MediaType.TEXT_PLAIN)
+        public String get() {
+            return "body";
         }
     }
 }
