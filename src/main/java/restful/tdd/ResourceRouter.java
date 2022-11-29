@@ -87,6 +87,7 @@ class ResourceMethods {
 
 class RootResourceClass implements ResourceRouter.RootResource {
 
+    private SubResourceLocators subResourceLocators;
     private PathTemplate uriTemplate;
     private Class<?> resourceClass;
     private ResourceMethods resourceMethods;
@@ -96,12 +97,15 @@ class RootResourceClass implements ResourceRouter.RootResource {
         this.uriTemplate = new PathTemplate(resourceClass.getAnnotation(Path.class).value());
         Method[] methods = resourceClass.getMethods();
         this.resourceMethods = new ResourceMethods(methods);
+        this.subResourceLocators = new SubResourceLocators(resourceClass.getMethods());
     }
 
     @Override
     public Optional<ResourceRouter.ResourceMethod> match(UriTemplate.MatchResult result, String method, String[] mediaTypes, ResourceContext resourceContext, UriInfoBuilder builder) {
+        builder.addMatchedResult(resourceContext.getResource(resourceClass));
         String remaining = Optional.ofNullable(result.getRemaining()).orElse("");
-        return resourceMethods.findResourceMethods(method, remaining);
+        return resourceMethods.findResourceMethods(method, remaining)
+                .or(() -> subResourceLocators.findSubResourceMethods(remaining, method, mediaTypes, resourceContext, builder));
     }
 
     @Override
@@ -178,6 +182,10 @@ class SubResourceLocators {
 
     public Optional<ResourceRouter.SubResourceLocator> findSubResource(String path) {
         return UriHandlers.match(path, subResourceLocators);
+    }
+
+    public Optional<ResourceRouter.ResourceMethod> findSubResourceMethods(String path, String method, String[] mediaTypes, ResourceContext context, UriInfoBuilder builder) {
+        return UriHandlers.mapMatched(path, subResourceLocators, (result, locator) -> locator.getSubResource(context, builder).match(result.get(), method, mediaTypes, context, builder));
     }
 
     static class DefaultSubResourceLocator implements ResourceRouter.SubResourceLocator {

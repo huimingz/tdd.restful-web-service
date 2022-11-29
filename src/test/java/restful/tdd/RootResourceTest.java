@@ -1,9 +1,12 @@
 package restful.tdd;
 
-import jakarta.ws.rs.*;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.container.ResourceContext;
 import jakarta.ws.rs.core.MediaType;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -11,7 +14,19 @@ import org.mockito.Mockito;
 
 import java.util.Optional;
 
+import static org.mockito.ArgumentMatchers.eq;
+
 public class RootResourceTest {
+
+    private ResourceContext resourceContext;
+    private Messages rootResource;
+
+    @BeforeEach
+    public void before() {
+        resourceContext = Mockito.mock(ResourceContext.class);
+        rootResource = new Messages();
+        Mockito.when(resourceContext.getResource(eq(Messages.class))).thenReturn(rootResource);
+    }
 
     @Test
     public void should_get_uri_template_from_path_annotation() {
@@ -23,24 +38,16 @@ public class RootResourceTest {
 
     @ParameterizedTest(name = "{3}")
     @CsvSource(textBlock = """
-            GET,        /messages/hello,            Messages.hello,                 GET and URI match
-            GET,        /messages/ah,               Messages.ah,                    GET and URI match
-            POST,       /messages/hello,            Messages.postHello,             POST and URI match
-            GET,        /messages/topics/1234,      Messages.topic1234,             GET with multiply choices
-            GET,        /messages,                  Messages.get,                   GET with resource method without Path
-            PUT,        /messages/hello,            Messages.putHello,              PUT and URI match
-            PATCH,      /messages/hello,            Messages.patchHello,            PATCH and URI match
-            DELETE,     /messages/hello,            Messages.deleteHello,           DELETE and URI match
-            HEAD,       /messages/hello,            Messages.headHello,             HEAD and URI match
-            OPTIONS,    /messages/hello,            Messages.optionsHello,          OPTIONS and URI match
+            GET,        /messages,                      Messages.get,               Map to resource method
+            GET,        /messages/1/content,            Message.content,           Map to sub-resource method
             """
     )
     public void should_match_resource_method_in_root_resource(String httpMethod, String path, String resourceMethod, String context) {
         ResourceRouter.RootResource resource = new RootResourceClass(Messages.class);
+        StubUriInfoBuilder uriInfoBuilder = new StubUriInfoBuilder();
 
         UriTemplate.MatchResult result = resource.getUriTemplate().match(path).get();
-
-        ResourceRouter.ResourceMethod method = resource.match(result, httpMethod, new String[]{MediaType.TEXT_PLAIN}, null, Mockito.mock(UriInfoBuilder.class)).get();
+        ResourceRouter.ResourceMethod method = resource.match(result, httpMethod, new String[]{MediaType.TEXT_PLAIN}, resourceContext, uriInfoBuilder).get();
 
         Assertions.assertEquals(resourceMethod, method.toString());
     }
@@ -51,30 +58,30 @@ public class RootResourceTest {
         UriTemplate.MatchResult result = Mockito.mock(UriTemplate.MatchResult.class);
         Mockito.when(result.getRemaining()).thenReturn("/content");
 
-        Assertions.assertTrue(resource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, null, Mockito.mock(UriInfoBuilder.class)).isPresent());
+        Assertions.assertTrue(resource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, resourceContext, Mockito.mock(UriInfoBuilder.class)).isPresent());
     }
 
     @ParameterizedTest(name = "{2}")
     @CsvSource(textBlock = """
-            GET,        /missing-messages/1,             URI not match
-            POST,       /missing-messages,               Http method not matched
+            GET,        /messages/hello,                No matched resource method
             """)
-    public void should_return_empty_if_not_not_match(String httpMethod, String path, String context) {
-        ResourceRouter.RootResource resource = new RootResourceClass(MissingMessages.class);
+    public void should_return_empty_if_not_not_match_in_root_resource(String httpMethod, String path, String context) {
+        ResourceRouter.RootResource resource = new RootResourceClass(Messages.class);
+        StubUriInfoBuilder uriInfoBuilder = new StubUriInfoBuilder();
+
         UriTemplate.MatchResult result = resource.getUriTemplate().match(path).get();
-        Optional<ResourceRouter.ResourceMethod> method = resource.match(result, httpMethod, new String[]{MediaType.TEXT_PLAIN}, null, Mockito.mock(UriInfoBuilder.class));
+        Optional<ResourceRouter.ResourceMethod> method = resource.match(result, httpMethod, new String[]{MediaType.TEXT_PLAIN}, resourceContext, uriInfoBuilder);
 
         Assertions.assertTrue(method.isEmpty());
     }
 
     @Test
-    @Disabled
     public void should_add_last_match_resource_to_uri_info_builder() {
         StubUriInfoBuilder uriInfoBuilder = new StubUriInfoBuilder();
         RootResourceClass resource = new RootResourceClass(Messages.class);
         UriTemplate.MatchResult result = resource.getUriTemplate().match("/messages").get();
 
-        Optional<ResourceRouter.ResourceMethod> method = resource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, null, uriInfoBuilder);
+        Optional<ResourceRouter.ResourceMethod> method = resource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, resourceContext, uriInfoBuilder);
 
         Assertions.assertTrue(uriInfoBuilder.getLastMatchedResource() instanceof Messages);
     }
@@ -84,14 +91,6 @@ public class RootResourceTest {
     // TODO: if resource class does not have a path annotation, throw illegal argument.
     // TODO: Head and Options special case.
 
-    @Path("/missing-messages")
-    static class MissingMessages {
-        @GET
-        @Produces(MediaType.TEXT_PLAIN)
-        public String get() {
-            return "messages";
-        }
-    }
 
     @Path("/messages")
     static class Messages {
@@ -99,78 +98,9 @@ public class RootResourceTest {
         @GET
         @Produces(MediaType.TEXT_PLAIN)
         public String get() {
-            return "get";
+            return "messages";
         }
 
-        @GET
-        @Path("/ah")
-        @Produces(MediaType.TEXT_PLAIN)
-        public String ah() {
-            return "ah";
-        }
-
-        @GET
-        @Path("/hello")
-        @Produces(MediaType.TEXT_PLAIN)
-        public String hello() {
-            return "hello";
-        }
-
-        @POST
-        @Path("/hello")
-        @Produces(MediaType.TEXT_PLAIN)
-        public String postHello() {
-            return "hello";
-        }
-
-        @DELETE
-        @Path("/hello")
-        @Produces(MediaType.TEXT_PLAIN)
-        public String deleteHello() {
-            return "hello";
-        }
-
-        @PUT
-        @Path("/hello")
-        @Produces(MediaType.TEXT_PLAIN)
-        public String putHello() {
-            return "hello";
-        }
-
-        @PATCH
-        @Path("/hello")
-        @Produces(MediaType.TEXT_PLAIN)
-        public String patchHello() {
-            return "hello";
-        }
-
-        @HEAD
-        @Path("/hello")
-        @Produces(MediaType.TEXT_PLAIN)
-        public String headHello() {
-            return "hello";
-        }
-
-        @OPTIONS
-        @Path("/hello")
-        @Produces(MediaType.TEXT_PLAIN)
-        public String optionsHello() {
-            return "hello";
-        }
-
-        @GET
-        @Path("/topics/{id}")
-        @Produces(MediaType.TEXT_PLAIN)
-        public String topicId() {
-            return "topicId";
-        }
-
-        @GET
-        @Path("/topics/1234")
-        @Produces(MediaType.TEXT_PLAIN)
-        public String topic1234() {
-            return "topic1234";
-        }
 
         @Path("/{id}")
         public Message getByID() {
