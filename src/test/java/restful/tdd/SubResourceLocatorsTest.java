@@ -41,7 +41,7 @@ public class SubResourceLocatorsTest {
         ResourceRouter.SubResourceLocator subResourceLocator = locators.findSubResource("/hello").get();
 
         ResourceRouter.Resource subResource = subResourceLocator.getSubResource(Mockito.mock(ResourceContext.class), uriInfoBuilder);
-        ResourceRouter.ResourceMethod method = subResource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, uriInfoBuilder).get();
+        ResourceRouter.ResourceMethod method = subResource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, null, uriInfoBuilder).get();
 
         Assertions.assertEquals("Message.content", method.toString());
         Assertions.assertEquals("hello", (( Message) uriInfoBuilder.getLastMatchedResource()).message);

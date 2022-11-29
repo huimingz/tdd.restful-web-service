@@ -3,6 +3,7 @@ package restful.tdd;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -39,7 +40,7 @@ public class RootResourceTest {
 
         UriTemplate.MatchResult result = resource.getUriTemplate().match(path).get();
 
-        ResourceRouter.ResourceMethod method = resource.match(result, httpMethod, new String[]{MediaType.TEXT_PLAIN}, Mockito.mock(UriInfoBuilder.class)).get();
+        ResourceRouter.ResourceMethod method = resource.match(result, httpMethod, new String[]{MediaType.TEXT_PLAIN}, null, Mockito.mock(UriInfoBuilder.class)).get();
 
         Assertions.assertEquals(resourceMethod, method.toString());
     }
@@ -50,7 +51,7 @@ public class RootResourceTest {
         UriTemplate.MatchResult result = Mockito.mock(UriTemplate.MatchResult.class);
         Mockito.when(result.getRemaining()).thenReturn("/content");
 
-        Assertions.assertTrue(resource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, Mockito.mock(UriInfoBuilder.class)).isPresent());
+        Assertions.assertTrue(resource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, null, Mockito.mock(UriInfoBuilder.class)).isPresent());
     }
 
     @ParameterizedTest(name = "{2}")
@@ -61,18 +62,19 @@ public class RootResourceTest {
     public void should_return_empty_if_not_not_match(String httpMethod, String path, String context) {
         ResourceRouter.RootResource resource = new RootResourceClass(MissingMessages.class);
         UriTemplate.MatchResult result = resource.getUriTemplate().match(path).get();
-        Optional<ResourceRouter.ResourceMethod> method = resource.match(result, httpMethod, new String[]{MediaType.TEXT_PLAIN}, Mockito.mock(UriInfoBuilder.class));
+        Optional<ResourceRouter.ResourceMethod> method = resource.match(result, httpMethod, new String[]{MediaType.TEXT_PLAIN}, null, Mockito.mock(UriInfoBuilder.class));
 
         Assertions.assertTrue(method.isEmpty());
     }
 
     @Test
+    @Disabled
     public void should_add_last_match_resource_to_uri_info_builder() {
         StubUriInfoBuilder uriInfoBuilder = new StubUriInfoBuilder();
         RootResourceClass resource = new RootResourceClass(Messages.class);
         UriTemplate.MatchResult result = resource.getUriTemplate().match("/messages").get();
 
-        Optional<ResourceRouter.ResourceMethod> method = resource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, uriInfoBuilder);
+        Optional<ResourceRouter.ResourceMethod> method = resource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, null, uriInfoBuilder);
 
         Assertions.assertTrue(uriInfoBuilder.getLastMatchedResource() instanceof Messages);
     }
