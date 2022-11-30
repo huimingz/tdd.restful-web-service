@@ -1,24 +1,26 @@
 package restful.tdd;
 
 import jakarta.ws.rs.core.*;
+import org.mockito.Mock;
 import org.mockito.Mockito;
 
 import java.lang.annotation.Annotation;
 import java.net.URI;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
 
 public class StubResponseBuilder extends Response.ResponseBuilder {
     private Object entity;
     private int status;
+
+    private Set<String> allowed = new HashSet<>();
 
     @Override
     public Response build() {
         OutboundResponse response = Mockito.mock(OutboundResponse.class);
         Mockito.when(response.getEntity()).thenReturn(this.entity);
         Mockito.when(response.getStatus()).thenReturn(this.status);
+        Mockito.when(response.getAllowedMethods()).thenReturn(allowed);
+        Mockito.when(response.getGenericEntity()).thenReturn((GenericEntity) entity);
         return response;
     }
 
@@ -52,12 +54,14 @@ public class StubResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder allow(String... methods) {
-        return null;
+        Collections.addAll(allowed, methods);
+        return this;
     }
 
     @Override
     public Response.ResponseBuilder allow(Set<String> methods) {
-        return null;
+        allowed.addAll(methods);
+        return this;
     }
 
     @Override

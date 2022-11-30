@@ -8,7 +8,6 @@ import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 
-import javax.swing.plaf.TableHeaderUI;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.function.Function;
@@ -78,11 +77,46 @@ class ResourceMethods {
     }
 
     private Optional<ResourceRouter.ResourceMethod> findAlternative(String path, String method) {
-        return "HEAD".equals(method)? findMethod(path, "GET").map(HeadResourceMethod::new): Optional.empty();
+        if (HttpMethod.HEAD.equals(method)) return findMethod(path, HttpMethod.GET).map(HeadResourceMethod::new);
+        if (HttpMethod.OPTIONS.equals(method)) return Optional.of(new OptionResourceMethod(path));
+        return Optional.empty();
     }
 
     private Optional<ResourceRouter.ResourceMethod> findMethod(String path, String method) {
         return Optional.ofNullable(resourceMethods.get(method)).flatMap(methods -> UriHandlers.match(path, methods, r -> r.getRemaining() == null));
+    }
+
+    class OptionResourceMethod implements ResourceRouter.ResourceMethod {
+
+        private String path;
+
+        public OptionResourceMethod(String path) {
+            this.path = path;
+        }
+
+        @Override
+        public GenericEntity<?> call(ResourceContext context, UriInfoBuilder builder) {
+            return new GenericEntity<>(Response.noContent().allow(findAllowedMethods()).build(), Response.class);
+        }
+
+        private Set<String> findAllowedMethods() {
+            Set<String> allowed = List.of(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.HEAD, HttpMethod.DELETE, HttpMethod.PATCH, HttpMethod.OPTIONS).stream().filter(m -> findMethod(path, m).isPresent()).collect(Collectors.toSet());
+
+            allowed.add(HttpMethod.OPTIONS);
+            if (allowed.contains(HttpMethod.GET)) allowed.add(HttpMethod.HEAD);
+
+            return allowed;
+        }
+
+        @Override
+        public String getHttpMethod() {
+            return null;
+        }
+
+        @Override
+        public UriTemplate getUriTemplate() {
+            return null;
+        }
     }
 }
 

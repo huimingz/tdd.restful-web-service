@@ -1,13 +1,19 @@
 package restful.tdd;
 
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.container.ResourceContext;
+import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.Mockito;
 
 import java.util.Optional;
+import java.util.Set;
 
 public class ResourceMethodsTest {
 
@@ -60,6 +66,42 @@ public class ResourceMethodsTest {
         Assertions.assertInstanceOf(HeadResourceMethod.class, method);
     }
 
+    @Test
+    public void should_get_options_for_given_uri() {
+        RuntimeDelegate delegate = Mockito.mock(RuntimeDelegate.class);
+        RuntimeDelegate.setInstance(delegate);
+        Mockito.when(delegate.createResponseBuilder()).thenReturn(new StubResponseBuilder());
+        ResourceContext context = Mockito.mock(ResourceContext.class);
+        UriInfoBuilder builder = Mockito.mock(UriInfoBuilder.class);
+
+        ResourceMethods resourceMethods = new ResourceMethods(Messages.class.getMethods());
+        UriTemplate.MatchResult result = new PathTemplate("/messages").match("/messages/head").get();
+
+        ResourceRouter.ResourceMethod method = resourceMethods.findResourceMethods(result.getRemaining(), "OPTIONS").get();
+        Response response = (Response) method.call(context, builder).getEntity();
+
+        Assertions.assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        Assertions.assertEquals(Set.of(HttpMethod.GET, HttpMethod.HEAD, HttpMethod.OPTIONS), response.getAllowedMethods());
+    }
+
+    @Test
+    public void should_not_include_head_in_options_if_given_uri_not_have_get_method() {
+        RuntimeDelegate delegate = Mockito.mock(RuntimeDelegate.class);
+        RuntimeDelegate.setInstance(delegate);
+        Mockito.when(delegate.createResponseBuilder()).thenReturn(new StubResponseBuilder());
+        ResourceContext context = Mockito.mock(ResourceContext.class);
+        UriInfoBuilder builder = Mockito.mock(UriInfoBuilder.class);
+
+        ResourceMethods resourceMethods = new ResourceMethods(Messages.class.getMethods());
+        UriTemplate.MatchResult result = new PathTemplate("/messages").match("/messages/no-head").get();
+
+        ResourceRouter.ResourceMethod method = resourceMethods.findResourceMethods(result.getRemaining(), "OPTIONS").get();
+        Response response = (Response) method.call(context, builder).getEntity();
+
+        Assertions.assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        Assertions.assertEquals(Set.of(HttpMethod.POST, HttpMethod.OPTIONS), response.getAllowedMethods());
+    }
+
     @Path("/missing-messages")
     static class MissingMessages {
         @GET
@@ -83,11 +125,19 @@ public class ResourceMethodsTest {
         public String getHead() {
             return "head";
         }
+
+
         @GET
         @Path("/hello")
         @Produces(MediaType.TEXT_PLAIN)
         public String hello() {
             return "hello";
+        }
+
+        @POST
+        @Path("/no-head")
+        @Produces(MediaType.TEXT_PLAIN)
+        public void PostNoHead() {
         }
 
         @POST
