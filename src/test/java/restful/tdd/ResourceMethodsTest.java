@@ -21,6 +21,7 @@ public class ResourceMethodsTest {
             DELETE,     /messages/hello,            Messages.deleteHello,           DELETE and URI match
             HEAD,       /messages/hello,            Messages.headHello,             HEAD and URI match
             OPTIONS,    /messages/hello,            Messages.optionsHello,          OPTIONS and URI match
+            HEAD,       /messages/head,             Messages.getHead,               HEAD with GET resource method
             """
     )
     public void should_match_resource_method_in_root_resource(String httpMethod, String path, String resourceMethod, String context) {
@@ -66,6 +67,11 @@ public class ResourceMethodsTest {
             return "get";
         }
 
+        @GET
+        @Path("/head")
+        public String getHead() {
+            return "head";
+        }
         @GET
         @Path("/hello")
         @Produces(MediaType.TEXT_PLAIN)

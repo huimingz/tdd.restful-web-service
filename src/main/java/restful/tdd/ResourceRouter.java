@@ -73,8 +73,18 @@ class ResourceMethods {
     }
 
     public Optional<ResourceRouter.ResourceMethod> findResourceMethods(String path, String method) {
+        return findMethod(path, method).or(() -> findAlternative(path, method));
+    }
+
+    private Optional<ResourceRouter.ResourceMethod> findAlternative(String path, String method) {
+        return "HEAD".equals(method)? findMethod(path, "GET"): Optional.empty();
+    }
+
+    private Optional<ResourceRouter.ResourceMethod> findMethod(String path, String method) {
         return Optional.ofNullable(resourceMethods.get(method)).flatMap(methods -> UriHandlers.match(path, methods, r -> r.getRemaining() == null));
     }
+
+
 }
 
 
@@ -194,15 +204,7 @@ class RootResourceHandler implements ResourceRouter.Resource {
         builder.addMatchedResult(resource.apply(resourceContext));
         String remaining = Optional.ofNullable(result.getRemaining()).orElse("");
         return resourceMethods.findResourceMethods(remaining, httpMethod)
-                .or(() -> alternative(remaining, httpMethod))
                 .or(() -> subResourceLocators.findSubResourceMethods(remaining, httpMethod, mediaTypes, resourceContext, builder));
-    }
-
-    private Optional<ResourceRouter.ResourceMethod> alternative(String remaining, String httpMethod) {
-        if ("HEAD".equals(httpMethod)) {
-            return resourceMethods.findResourceMethods(remaining, "GET");
-        }
-        return Optional.empty();
     }
 
     @Override

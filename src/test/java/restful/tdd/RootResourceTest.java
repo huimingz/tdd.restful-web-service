@@ -37,9 +37,6 @@ public class RootResourceTest {
     @ParameterizedTest(name = "{3}")
     @CsvSource(textBlock = """
             GET,        /messages,                      Messages.get,               Map to resource method
-            HEAD,       /messages,                      Messages.head,              Map to resource method
-            HEAD,       /messages/special,              Messages.getSpecial,        Map to resource method
-            OPTIONS,    /messages,                      Messages.options,           Map to resource method
             GET,        /messages/1/content,            Message.content,            Map to sub-resource method
             GET,        /messages/1/body,               MessageBody.get,            Map to sub-sub -resource method
             """
