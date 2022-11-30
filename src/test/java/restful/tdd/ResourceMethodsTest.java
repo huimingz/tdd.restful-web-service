@@ -5,7 +5,6 @@ import jakarta.ws.rs.core.MediaType;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.mockito.Mockito;
 
 import java.util.Optional;
 
@@ -29,7 +28,7 @@ public class ResourceMethodsTest {
         UriTemplate.MatchResult result = new PathTemplate("/messages").match(path).get();
         String remaining = result.getRemaining() != null ? result.getRemaining(): "";
 
-        ResourceRouter.ResourceMethod method = resourceMethods.findResourceMethods(httpMethod, remaining).get();
+        ResourceRouter.ResourceMethod method = resourceMethods.findResourceMethods(remaining, httpMethod).get();
 
         Assertions.assertEquals(resourceMethod, method.toString());
     }
@@ -44,7 +43,7 @@ public class ResourceMethodsTest {
         UriTemplate.MatchResult result = new PathTemplate("/missing-messages").match(path).get();
         String remaining = result.getRemaining() != null ? result.getRemaining(): "";
 
-        Optional<ResourceRouter.ResourceMethod> method = resourceMethods.findResourceMethods(httpMethod, remaining);
+        Optional<ResourceRouter.ResourceMethod> method = resourceMethods.findResourceMethods(remaining, httpMethod);
 
         Assertions.assertTrue(method.isEmpty());
     }

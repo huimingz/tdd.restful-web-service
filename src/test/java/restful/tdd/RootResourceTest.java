@@ -1,8 +1,6 @@
 package restful.tdd;
 
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ResourceContext;
 import jakarta.ws.rs.core.MediaType;
 import org.junit.jupiter.api.Assertions;
@@ -39,6 +37,9 @@ public class RootResourceTest {
     @ParameterizedTest(name = "{3}")
     @CsvSource(textBlock = """
             GET,        /messages,                      Messages.get,               Map to resource method
+            HEAD,       /messages,                      Messages.head,              Map to resource method
+            HEAD,       /messages/special,              Messages.getSpecial,        Map to resource method
+            OPTIONS,    /messages,                      Messages.options,           Map to resource method
             GET,        /messages/1/content,            Message.content,            Map to sub-resource method
             GET,        /messages/1/body,               MessageBody.get,            Map to sub-sub -resource method
             """
@@ -104,6 +105,21 @@ public class RootResourceTest {
         @Produces(MediaType.TEXT_PLAIN)
         public String get() {
             return "messages";
+        }
+
+
+        @GET
+        @Path("/special")
+        public String getSpecial() {
+            return "special";
+        }
+
+        @HEAD
+        public void head() {
+        }
+
+        @OPTIONS
+        public void options() {
         }
 
 
