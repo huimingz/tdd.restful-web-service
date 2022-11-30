@@ -3,6 +3,7 @@ package restful.tdd;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
@@ -47,6 +48,16 @@ public class ResourceMethodsTest {
         Optional<ResourceRouter.ResourceMethod> method = resourceMethods.findResourceMethods(remaining, httpMethod);
 
         Assertions.assertTrue(method.isEmpty());
+    }
+
+    @Test
+    public void should_convert_get_resource_method_to_head_resource_method() {
+        ResourceMethods resourceMethods = new ResourceMethods(Messages.class.getMethods());
+        UriTemplate.MatchResult result = new PathTemplate("/messages").match("/messages/head").get();
+
+        ResourceRouter.ResourceMethod method = resourceMethods.findResourceMethods(result.getRemaining(), "HEAD").get();
+
+        Assertions.assertInstanceOf(HeadResourceMethod.class, method);
     }
 
     @Path("/missing-messages")

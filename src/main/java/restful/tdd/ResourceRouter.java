@@ -8,6 +8,7 @@ import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 
+import javax.swing.plaf.TableHeaderUI;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.function.Function;
@@ -77,14 +78,12 @@ class ResourceMethods {
     }
 
     private Optional<ResourceRouter.ResourceMethod> findAlternative(String path, String method) {
-        return "HEAD".equals(method)? findMethod(path, "GET"): Optional.empty();
+        return "HEAD".equals(method)? findMethod(path, "GET").map(HeadResourceMethod::new): Optional.empty();
     }
 
     private Optional<ResourceRouter.ResourceMethod> findMethod(String path, String method) {
         return Optional.ofNullable(resourceMethods.get(method)).flatMap(methods -> UriHandlers.match(path, methods, r -> r.getRemaining() == null));
     }
-
-
 }
 
 
@@ -168,6 +167,35 @@ class SubResourceLocators {
                 throw new RuntimeException(e);
             }
         }
+    }
+}
+
+class HeadResourceMethod implements ResourceRouter.ResourceMethod {
+    ResourceRouter.ResourceMethod method;
+
+    public HeadResourceMethod(ResourceRouter.ResourceMethod method) {
+        this.method = method;
+    }
+
+    @Override
+    public GenericEntity<?> call(ResourceContext context, UriInfoBuilder builder) {
+        method.call(context, builder);
+        return null;
+    }
+
+    @Override
+    public String getHttpMethod() {
+        return this.method.getHttpMethod();
+    }
+
+    @Override
+    public UriTemplate getUriTemplate() {
+        return this.method.getUriTemplate();
+    }
+
+    @Override
+    public String toString() {
+        return this.method.toString();
     }
 }
 
