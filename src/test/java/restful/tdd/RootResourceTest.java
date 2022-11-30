@@ -88,9 +88,12 @@ public class RootResourceTest {
         Assertions.assertTrue(uriInfoBuilder.getLastMatchedResource() instanceof Messages);
     }
 
-    // TODO: if sub resource locator matches uri, using it to do follow up matching.
-    // TODO: if no method / sub resource locator matches, return 404.
     // TODO: if resource class does not have a path annotation, throw illegal argument.
+    @Test
+    public void should_throw_illegal_argument_exception_if_root_resource_not_have_path_annotation() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> new RootResourceHandler(Message.class));
+    }
+
     // TODO: Head and Options special case.
 
 

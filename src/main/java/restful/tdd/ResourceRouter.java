@@ -169,7 +169,12 @@ class RootResourceHandler implements ResourceRouter.Resource {
     private Function<ResourceContext, Object> resource;
 
     public RootResourceHandler(Class<?> resourceClass) {
-        this(resourceClass, new PathTemplate(resourceClass.getAnnotation(Path.class).value()), rc -> rc.getResource(resourceClass));
+        this(resourceClass, new PathTemplate(getTemplate(resourceClass)), rc -> rc.getResource(resourceClass));
+    }
+
+    private static String getTemplate(Class<?> resourceClass) {
+        if (!resourceClass.isAnnotationPresent(Path.class)) throw new IllegalArgumentException();
+        return resourceClass.getAnnotation(Path.class).value();
     }
 
     public RootResourceHandler(Object resource, UriTemplate uriTemplate) {
