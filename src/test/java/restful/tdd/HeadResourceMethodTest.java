@@ -1,5 +1,6 @@
 package restful.tdd;
 
+import jakarta.ws.rs.HttpMethod;
 import jakarta.ws.rs.container.ResourceContext;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -38,8 +39,8 @@ public class HeadResourceMethodTest {
         ResourceRouter.ResourceMethod method = Mockito.mock(ResourceRouter.ResourceMethod.class);
         HeadResourceMethod headResourceMethod = new HeadResourceMethod(method);
 
-        Mockito.when(method.getHttpMethod()).thenReturn("GET");
+        Mockito.when(method.getHttpMethod()).thenReturn(HttpMethod.GET);
 
-        Assertions.assertEquals("GET", headResourceMethod.getHttpMethod());
+        Assertions.assertEquals(HttpMethod.HEAD, headResourceMethod.getHttpMethod());
     }
 }

@@ -58,6 +58,21 @@ public class ResourceDispatcherTest {
     }
 
     @Test
+    public void should_use_response_object_from_resource_method() {
+        Response returnResponse = Mockito.mock(OutboundResponse.class);
+        Mockito.when(returnResponse.getStatus()).thenReturn(304);
+        GenericEntity entity = new GenericEntity(returnResponse, Response.class);
+
+        DefaultResourceRouter router = new DefaultResourceRouter(runtime, List.of(
+                rootResource(matched_("/users/1", result("/1")), returns(entity)),
+                rootResource(unmatched_("/users/1"))));
+
+        OutboundResponse response = router.dispatch(request, context);
+
+        Assertions.assertEquals(304, response.getStatus());
+    }
+
+    @Test
     public void should_sort_matched_root_resource_descending_order() {
         GenericEntity entity1 = new GenericEntity("1", String.class);
         GenericEntity entity2 = new GenericEntity("2", String.class);

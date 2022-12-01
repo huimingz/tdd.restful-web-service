@@ -8,6 +8,7 @@ import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.function.Function;
@@ -49,7 +50,9 @@ class DefaultResourceRouter implements ResourceRouter {
             return (OutboundResponse) Response.status(Response.Status.NOT_FOUND).build();
         }
 
-        return (OutboundResponse) method.map(m -> m.call(resourceContext, uri)).map(entity -> Response.ok(entity).build()).orElseGet(() -> Response.noContent().build());
+        return (OutboundResponse) method.map(m -> m.call(resourceContext, uri)).map(entity -> {
+            return (entity.getEntity() instanceof OutboundResponse) ? (OutboundResponse) entity.getEntity() : Response.ok(entity).build();
+        }).orElseGet(() -> Response.noContent().build());
     }
 
     private static Optional<ResourceMethod> findResourceMethod(HttpServletRequest request, ResourceContext resourceContext, UriInfoBuilder uri, Optional<UriTemplate.MatchResult> matched, Resource handler) {
@@ -137,7 +140,12 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
 
     @Override
     public GenericEntity<?> call(ResourceContext context, UriInfoBuilder builder) {
-        return null;
+        try {
+            Object result = method.invoke(builder.getLastMatchedResource());
+            return new GenericEntity<>(result, method.getGenericReturnType());
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -219,7 +227,7 @@ class HeadResourceMethod implements ResourceRouter.ResourceMethod {
 
     @Override
     public String getHttpMethod() {
-        return this.method.getHttpMethod();
+        return HttpMethod.HEAD;
     }
 
     @Override
