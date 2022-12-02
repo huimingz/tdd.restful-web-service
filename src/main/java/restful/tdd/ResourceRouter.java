@@ -14,6 +14,7 @@ import jakarta.ws.rs.core.UriInfo;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.Type;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -147,28 +148,44 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
         try {
             UriInfo uriInfo = builder.createUriInfo();
 
-            Object[] parameters = Arrays.stream(method.getParameters()).map(p -> {
-                List<String> values;
+            Object[] parameters = Arrays.stream(method.getParameters()).map(parameter -> {
 
-                if (p.isAnnotationPresent(PathParam.class)) {
-                    String name = p.getAnnotation(PathParam.class).value();
-                    values = uriInfo.getPathParameters().get(name);
-                } else {
-                    String name = p.getAnnotation(QueryParam.class).value();
-                    values = uriInfo.getQueryParameters().get(name);
-                }
+                return providers.stream()
+                        .map(provider -> provider.provider(parameter, uriInfo))
+                        .filter(Optional::isPresent)
+                        .findFirst()
+                        .flatMap(values -> values.map(v -> converters.get(parameter.getType()).fromString(v)))
+                        .orElse(null);
 
-                String value = values.get(0);
-
-                return (p.getType() == int.class) ? Integer.parseInt(value): value;
-            }).collect(Collectors.toList()).toArray(Object[]::new);
+//                Optional<List<String>> values = pathParam.provider(p, uriInfo).or(() -> queryParam.provider(p, uriInfo));
+//                return values.map(v -> converters.get(p.getType()).fromString(v)).orElse(null);
+            }).toArray(Object[]::new);
 
             Object result = method.invoke(builder.getLastMatchedResource(), parameters);
-            return result != null ?  new GenericEntity<>(result, method.getGenericReturnType()) : null;
+            return result != null ? new GenericEntity<>(result, method.getGenericReturnType()) : null;
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
     }
+
+    private static ValueProvider pathParam = (parameter, uriInfo) -> Optional.ofNullable(parameter.getAnnotation(PathParam.class)).map(a -> uriInfo.getPathParameters().get(a.value()));
+    private static ValueProvider queryParam = (parameter, uriInfo) -> Optional.ofNullable(parameter.getAnnotation(QueryParam.class)).map(a -> uriInfo.getQueryParameters().get(a.value()));
+
+    private static List<ValueProvider> providers = List.of(pathParam, queryParam);
+
+    interface ValueProvider {
+        Optional<List<String>> provider(Parameter parameter, UriInfo uriInfo);
+    }
+
+    interface ValueConverter<T> {
+        T fromString(List<String> value);
+
+        static <T> ValueConverter<T> singleValue(Function<String, T> converter) {
+            return values -> converter.apply(values.get(0));
+        }
+    }
+
+    private static Map<Type, ValueConverter> converters = Map.of(int.class, ValueConverter.singleValue(Integer::parseInt), String.class, ValueConverter.singleValue(s -> s));
 
     @Override
     public String toString() {
