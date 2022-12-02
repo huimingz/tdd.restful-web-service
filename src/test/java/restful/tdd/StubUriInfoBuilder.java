@@ -1,5 +1,7 @@
 package restful.tdd;
 
+import jakarta.ws.rs.core.UriInfo;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,5 +19,10 @@ class StubUriInfoBuilder implements UriInfoBuilder {
     @Override
     public void addMatchedResult(Object resource) {
         this.matchedResult.add(resource);
+    }
+
+    @Override
+    public UriInfo createUriInfo() {
+        return null;
     }
 }

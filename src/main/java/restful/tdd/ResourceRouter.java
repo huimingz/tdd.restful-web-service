@@ -3,13 +3,17 @@ package restful.tdd;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.HttpMethod;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.container.ResourceContext;
 import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -141,8 +145,26 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
     @Override
     public GenericEntity<?> call(ResourceContext context, UriInfoBuilder builder) {
         try {
-            Object result = method.invoke(builder.getLastMatchedResource());
-            return new GenericEntity<>(result, method.getGenericReturnType());
+            UriInfo uriInfo = builder.createUriInfo();
+
+            Object[] parameters = Arrays.stream(method.getParameters()).map(p -> {
+                List<String> values;
+
+                if (p.isAnnotationPresent(PathParam.class)) {
+                    String name = p.getAnnotation(PathParam.class).value();
+                    values = uriInfo.getPathParameters().get(name);
+                } else {
+                    String name = p.getAnnotation(QueryParam.class).value();
+                    values = uriInfo.getQueryParameters().get(name);
+                }
+
+                String value = values.get(0);
+
+                return (p.getType() == int.class) ? Integer.parseInt(value): value;
+            }).collect(Collectors.toList()).toArray(Object[]::new);
+
+            Object result = method.invoke(builder.getLastMatchedResource(), parameters);
+            return result != null ?  new GenericEntity<>(result, method.getGenericReturnType()) : null;
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
