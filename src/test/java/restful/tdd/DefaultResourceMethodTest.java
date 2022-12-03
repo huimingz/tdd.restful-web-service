@@ -8,6 +8,7 @@ import jakarta.ws.rs.container.ResourceContext;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.UriInfo;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.shadow.com.univocity.parsers.common.processor.BeanWriterProcessor;
 import org.mockito.Mockito;
 
 import java.lang.reflect.Proxy;
@@ -85,6 +86,7 @@ public class DefaultResourceMethodTest {
                 new InjectableTpeTestCase(short.class, "323", (short) 323),
                 new InjectableTpeTestCase(byte.class, "42", (byte) 42),
                 new InjectableTpeTestCase(boolean.class, "true", true),
+                new InjectableTpeTestCase(Converter.class, "Factory", Converter.Factory),
                 new InjectableTpeTestCase(BigDecimal.class, "314", new BigDecimal("314"))
         );
 
@@ -153,6 +155,9 @@ public class DefaultResourceMethodTest {
         String getPathParam(@PathParam("param") BigDecimal value);
 
         @GET
+        String getPathParam(@PathParam("param") Converter value);
+
+        @GET
         String getQueryParam(@QueryParam("param") String value);
 
         @GET
@@ -175,5 +180,12 @@ public class DefaultResourceMethodTest {
 
         @GET
         String getQueryParam(@QueryParam("param") BigDecimal value);
+
+        @GET
+        String getQueryParam(@QueryParam("param") Converter value);
     }
+}
+
+enum Converter {
+    Primitive, Constructor, Factory;
 }
