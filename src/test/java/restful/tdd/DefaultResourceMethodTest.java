@@ -11,6 +11,7 @@ import org.junit.jupiter.api.*;
 import org.mockito.Mockito;
 
 import java.lang.reflect.Proxy;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -79,7 +80,12 @@ public class DefaultResourceMethodTest {
         List<InjectableTpeTestCase> typeCases = List.of(
                 new InjectableTpeTestCase(String.class, "string", "string"),
                 new InjectableTpeTestCase(int.class, "1", 1),
-                new InjectableTpeTestCase(Double.class, "3.14", 3.14)
+                new InjectableTpeTestCase(Double.class, "3.14", 3.14),
+                new InjectableTpeTestCase(float.class, "3.14", 3.14f),
+                new InjectableTpeTestCase(short.class, "323", (short) 323),
+                new InjectableTpeTestCase(byte.class, "42", (byte) 42),
+                new InjectableTpeTestCase(boolean.class, "true", true),
+                new InjectableTpeTestCase(BigDecimal.class, "314", new BigDecimal("314"))
         );
 
         List<String> paramTypes = List.of("getQueryParam", "getPathParam");
@@ -132,6 +138,21 @@ public class DefaultResourceMethodTest {
         String getPathParam(@PathParam("param") Double value);
 
         @GET
+        String getPathParam(@PathParam("param") short value);
+
+        @GET
+        String getPathParam(@PathParam("param") float value);
+
+        @GET
+        String getPathParam(@PathParam("param") byte value);
+
+        @GET
+        String getPathParam(@PathParam("param") boolean value);
+
+        @GET
+        String getPathParam(@PathParam("param") BigDecimal value);
+
+        @GET
         String getQueryParam(@QueryParam("param") String value);
 
         @GET
@@ -139,5 +160,20 @@ public class DefaultResourceMethodTest {
 
         @GET
         String getQueryParam(@QueryParam("param") Double value);
+
+        @GET
+        String getQueryParam(@QueryParam("param") short value);
+
+        @GET
+        String getQueryParam(@QueryParam("param") float value);
+
+        @GET
+        String getQueryParam(@QueryParam("param") byte value);
+
+        @GET
+        String getQueryParam(@QueryParam("param") boolean value);
+
+        @GET
+        String getQueryParam(@QueryParam("param") BigDecimal value);
     }
 }

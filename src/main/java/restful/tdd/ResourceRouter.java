@@ -153,7 +153,7 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
                             .map(provider -> provider.provider(parameter, uriInfo))
                             .filter(Optional::isPresent)
                             .findFirst()
-                            .flatMap(values -> values.map(v -> converters.get(parameter.getType()).fromString(v)))
+                            .flatMap(values -> values.flatMap(v -> convert(parameter, v)))
                             .orElse(null)).toArray(Object[]::new);
 
             Object result = method.invoke(builder.getLastMatchedResource(), parameters);
@@ -162,6 +162,12 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
             throw new RuntimeException(e);
         }
     }
+
+    private static Optional<Object> convert(Parameter parameter, List<String> values) {
+        return PrimitiveConverter.converter(parameter, values)
+                .or(() -> ConverterConstructor.convert(parameter.getType(), values.get(0)));
+    }
+
 
     private static ValueProvider pathParam = (parameter, uriInfo) -> Optional.ofNullable(parameter.getAnnotation(PathParam.class)).map(a -> uriInfo.getPathParameters().get(a.value()));
     private static ValueProvider queryParam = (parameter, uriInfo) -> Optional.ofNullable(parameter.getAnnotation(QueryParam.class)).map(a -> uriInfo.getQueryParameters().get(a.value()));
@@ -180,11 +186,6 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
         }
     }
 
-    private static Map<Type, ValueConverter> converters = Map.of(
-            int.class, ValueConverter.singleValue(Integer::parseInt),
-            Double.class, ValueConverter.singleValue(Double::parseDouble),
-            String.class, ValueConverter.singleValue(s -> s));
-
     @Override
     public String toString() {
         return method.getDeclaringClass().getSimpleName() + "." + method.getName();
@@ -198,6 +199,37 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
     @Override
     public String getHttpMethod() {
         return httpMethod;
+    }
+}
+
+
+class PrimitiveConverter {
+
+    private static Map<Type, DefaultResourceMethod.ValueConverter> primitives = Map.of(
+            int.class, DefaultResourceMethod.ValueConverter.singleValue(Integer::parseInt),
+            Double.class, DefaultResourceMethod.ValueConverter.singleValue(Double::parseDouble),
+            short.class, DefaultResourceMethod.ValueConverter.singleValue(Short::parseShort),
+            float.class, DefaultResourceMethod.ValueConverter.singleValue(Float::parseFloat),
+            byte.class, DefaultResourceMethod.ValueConverter.singleValue(Byte::parseByte),
+            boolean.class, DefaultResourceMethod.ValueConverter.singleValue(Boolean::parseBoolean),
+            String.class, DefaultResourceMethod.ValueConverter.singleValue(s -> s));
+
+    public static Optional<Object> converter(Parameter parameter, List<String> values) {
+                return Optional.ofNullable(primitives.get(parameter.getType()))
+                        .map(c -> c.fromString(values));
+            }
+}
+
+
+class ConverterConstructor {
+
+    public static Optional<Object> convert(Class<?> converter, String value) {
+        try {
+            return Optional.of(converter.getConstructor(String.class).newInstance(value));
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
+                 NoSuchMethodException e) {
+            return Optional.empty();
+        }
     }
 }
 
