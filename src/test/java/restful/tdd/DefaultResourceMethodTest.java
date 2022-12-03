@@ -5,10 +5,10 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.container.ResourceContext;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.UriInfo;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.params.shadow.com.univocity.parsers.common.processor.BeanWriterProcessor;
 import org.mockito.Mockito;
 
 import java.lang.reflect.Proxy;
@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static org.mockito.ArgumentMatchers.eq;
 
 public class DefaultResourceMethodTest {
 
@@ -30,6 +32,8 @@ public class DefaultResourceMethodTest {
 
     record LastCall(String name, List<Object> arguments) {
     }
+
+    private SomeServiceInContext service;
 
     @BeforeEach
     public void before() {
@@ -47,12 +51,14 @@ public class DefaultResourceMethodTest {
         context = Mockito.mock(ResourceContext.class);
         uriInfo = Mockito.mock(UriInfo.class);
         builder = Mockito.mock(UriInfoBuilder.class);
+        service = Mockito.mock(SomeServiceInContext.class);
         parameters = new MultivaluedHashMap<>();
 
         Mockito.when(builder.getLastMatchedResource()).thenReturn(resource);
         Mockito.when(builder.createUriInfo()).thenReturn(uriInfo);
         Mockito.when(uriInfo.getPathParameters()).thenReturn(parameters);
         Mockito.when(uriInfo.getQueryParameters()).thenReturn(parameters);
+        Mockito.when(context.getResource(eq(SomeServiceInContext.class))).thenReturn(service);
     }
 
     private static String getMethodName(String name, List<? extends Class<?>> classStream) {
@@ -75,7 +81,7 @@ public class DefaultResourceMethodTest {
     }
 
     @TestFactory
-    public List<DynamicTest> injectableTypes() {
+    public List<DynamicTest> inject_convertable_types() {
         List<DynamicTest> tests = new ArrayList<>();
 
         List<InjectableTpeTestCase> typeCases = List.of(
@@ -98,6 +104,26 @@ public class DefaultResourceMethodTest {
                     verifyResourceMethodCalled(type, testCase.type, testCase.string, testCase.value);
                 }));
             }
+        }
+        return tests;
+    }
+
+    @TestFactory
+    public List<DynamicTest> inject_context_object() {
+        List<DynamicTest> tests = new ArrayList<>();
+
+        List<InjectableTpeTestCase> typeCases = List.of(
+                new InjectableTpeTestCase(SomeServiceInContext.class, "N/A", service),
+                new InjectableTpeTestCase(ResourceContext.class, "N/A", context),
+                new InjectableTpeTestCase(UriInfo.class, "N/A", uriInfo)
+        );
+
+        List<String> paramTypes = List.of("getQueryParam");
+
+        for (InjectableTpeTestCase testCase : typeCases) {
+            tests.add(DynamicTest.dynamicTest("should inject " + testCase.type.getSimpleName() + " to getContext", () -> {
+                verifyResourceMethodCalled("getContext", testCase.type, testCase.string, testCase.value);
+            }));
         }
         return tests;
     }
@@ -183,9 +209,20 @@ public class DefaultResourceMethodTest {
 
         @GET
         String getQueryParam(@QueryParam("param") Converter value);
+
+        @GET
+        String getContext(@Context SomeServiceInContext context);
+
+        @GET
+        String getContext(@Context ResourceContext context);
+        @GET
+        String getContext(@Context UriInfo uriInfo);
     }
 }
 
 enum Converter {
     Primitive, Constructor, Factory;
+}
+
+interface SomeServiceInContext {
 }

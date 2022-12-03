@@ -149,11 +149,8 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
             UriInfo uriInfo = builder.createUriInfo();
 
             Object[] parameters = Arrays.stream(method.getParameters())
-                    .map(parameter -> providers.stream()
-                            .map(provider -> provider.provider(parameter, uriInfo))
-                            .filter(Optional::isPresent)
-                            .findFirst()
-                            .flatMap(values -> values.flatMap(v -> convert(parameter, v)))
+                    .map(parameter -> injectParameters(parameter, uriInfo)
+                            .or(() -> injectContext(parameter, context, uriInfo))
                             .orElse(null)).toArray(Object[]::new);
 
             Object result = method.invoke(builder.getLastMatchedResource(), parameters);
@@ -161,6 +158,20 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static Optional<Object> injectParameters(Parameter parameter, UriInfo uriInfo) {
+        return providers.stream()
+                .map(provider -> provider.provider(parameter, uriInfo))
+                .filter(Optional::isPresent)
+                .findFirst()
+                .flatMap(values -> values.flatMap(v -> convert(parameter, v)));
+    }
+
+    private static Optional<Object> injectContext(Parameter parameter, ResourceContext resourceContext, UriInfo uriInfo) {
+        if (parameter.getType().equals(ResourceContext.class)) return Optional.of(resourceContext);
+        if (parameter.getType().equals(UriInfo.class)) return Optional.of(uriInfo);
+        return Optional.of(resourceContext.getResource(parameter.getType()));
     }
 
     private static Optional<Object> convert(Parameter parameter, List<String> values) {
