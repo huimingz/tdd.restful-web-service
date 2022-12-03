@@ -1,17 +1,20 @@
 package restful.tdd;
 
-import jakarta.ws.rs.*;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.container.ResourceContext;
-import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.UriInfo;
-import org.junit.Assert;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.Mockito;
 
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class DefaultResourceMethodTest {
 
@@ -21,12 +24,27 @@ public class DefaultResourceMethodTest {
     private UriInfo uriInfo;
     private MultivaluedHashMap<String, String> parameters;
 
+    private LastCall lastCall;
+
+    record LastCall(String name, List<Object> arguments) {
+    }
+
     @BeforeEach
     public void before() {
+        resource = (CallableResourceMethods) Proxy.newProxyInstance(
+                this.getClass().getClassLoader(),
+                new Class[]{CallableResourceMethods.class},
+                (proxy, method, args) -> {
+                    String name = method.getName();
+                    lastCall = new LastCall(
+                            getMethodName(name, Arrays.stream(method.getParameters()).map(p -> p.getType()).toList()),
+                            args != null ? List.of(args) : List.of());
+                    return "getList".equals(method.getName()) ? new ArrayList<String>() : null;
+                });
+
         context = Mockito.mock(ResourceContext.class);
         uriInfo = Mockito.mock(UriInfo.class);
         builder = Mockito.mock(UriInfoBuilder.class);
-        resource = Mockito.mock(CallableResourceMethods.class);
         parameters = new MultivaluedHashMap<>();
 
         Mockito.when(builder.getLastMatchedResource()).thenReturn(resource);
@@ -35,26 +53,56 @@ public class DefaultResourceMethodTest {
         Mockito.when(uriInfo.getQueryParameters()).thenReturn(parameters);
     }
 
+    private static String getMethodName(String name, List<? extends Class<?>> classStream) {
+        return name + "(" + classStream.stream().map(t -> t.getSimpleName()).collect(Collectors.joining(",")) + ")";
+    }
+
     @Test
     public void should_call_resource_method() throws NoSuchMethodException {
-        Mockito.when(resource.get()).thenReturn("resource called");
         DefaultResourceMethod resourceMethod = getResourceMethod("get");
+        resourceMethod.call(context, builder);
 
-        Assertions.assertEquals(new GenericEntity<>("resource called", String.class), resourceMethod.call(context, builder));
+        Assertions.assertEquals("get()", lastCall.name);
     }
 
     private static DefaultResourceMethod getResourceMethod(String methodName, Class... types) throws NoSuchMethodException {
         return new DefaultResourceMethod(CallableResourceMethods.class.getMethod(methodName, types));
     }
 
-    @Test
-    public void should_inject_string_to_path_param() throws NoSuchMethodException {
-        DefaultResourceMethod resourceMethod = getResourceMethod("getPathParam", String.class);
+    record InjectableTpeTestCase(Class<?> type, String string, Object value) {
+    }
 
-        parameters.put("path", List.of("path"));
+    @TestFactory
+    public List<DynamicTest> injectableTypes() {
+        List<DynamicTest> tests = new ArrayList<>();
+
+        List<InjectableTpeTestCase> typeCases = List.of(
+                new InjectableTpeTestCase(String.class, "string", "string"),
+                new InjectableTpeTestCase(int.class, "1", 1),
+                new InjectableTpeTestCase(Double.class, "3.14", 3.14)
+        );
+
+        List<String> paramTypes = List.of("getQueryParam", "getPathParam");
+
+        for (String type : paramTypes) {
+            for (InjectableTpeTestCase testCase : typeCases) {
+                tests.add(DynamicTest.dynamicTest("should inject " + testCase.type.getSimpleName() + " to " + type, () -> {
+                    verifyResourceMethodCalled(type, testCase.type, testCase.string, testCase.value);
+                }));
+            }
+        }
+        return tests;
+    }
+
+
+    private void verifyResourceMethodCalled(String method, Class<?> type, String paramValue, Object value) throws NoSuchMethodException {
+        DefaultResourceMethod resourceMethod = getResourceMethod(method, type);
+
+        parameters.put("param", List.of(paramValue));
         resourceMethod.call(context, builder);
 
-        Mockito.verify(resource).getPathParam("path");
+        Assertions.assertEquals(getMethodName(method, List.of(type)), lastCall.name);
+        Assertions.assertEquals(List.of(value), lastCall.arguments);
     }
 
     @Test
@@ -63,37 +111,6 @@ public class DefaultResourceMethodTest {
 
         Assertions.assertNull(resourceMethod.call(context, builder));
     }
-
-    @Test
-    public void should_inject_int_to_path_param() throws NoSuchMethodException {
-        DefaultResourceMethod resourceMethod = getResourceMethod("getPathParam", int.class);
-
-        parameters.put("path", List.of("1"));
-        resourceMethod.call(context, builder);
-
-        Mockito.verify(resource).getPathParam(1);
-    }
-    @Test
-    public void should_inject_string_to_query_param() throws NoSuchMethodException {
-        DefaultResourceMethod resourceMethod = getResourceMethod("getQueryParam", String.class);
-
-        parameters.put("path", List.of("query"));
-        resourceMethod.call(context, builder);
-
-        Mockito.verify(resource).getQueryParam("query");
-    }
-
-    @Test
-    public void should_inject_int_to_query_param() throws NoSuchMethodException {
-        DefaultResourceMethod resourceMethod = getResourceMethod("getQueryParam", int.class);
-
-        parameters.put("path", List.of("1"));
-        resourceMethod.call(context, builder);
-
-        Mockito.verify(resource).getQueryParam(1);
-    }
-
-    // TODO: return type
 
     interface CallableResourceMethods {
         @GET
@@ -106,15 +123,21 @@ public class DefaultResourceMethodTest {
         List<String> getList();
 
         @GET
-        String getPathParam(@PathParam("path") String value);
+        String getPathParam(@PathParam("param") String value);
 
         @GET
-        String getPathParam(@PathParam("path") int value);
+        String getPathParam(@PathParam("param") int value);
 
         @GET
-        String getQueryParam(@QueryParam("path") String value);
+        String getPathParam(@PathParam("param") Double value);
 
         @GET
-        String getQueryParam(@QueryParam("path") int value);
+        String getQueryParam(@QueryParam("param") String value);
+
+        @GET
+        String getQueryParam(@QueryParam("param") int value);
+
+        @GET
+        String getQueryParam(@QueryParam("param") Double value);
     }
 }

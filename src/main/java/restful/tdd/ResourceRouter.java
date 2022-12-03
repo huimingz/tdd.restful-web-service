@@ -148,18 +148,13 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
         try {
             UriInfo uriInfo = builder.createUriInfo();
 
-            Object[] parameters = Arrays.stream(method.getParameters()).map(parameter -> {
-
-                return providers.stream()
-                        .map(provider -> provider.provider(parameter, uriInfo))
-                        .filter(Optional::isPresent)
-                        .findFirst()
-                        .flatMap(values -> values.map(v -> converters.get(parameter.getType()).fromString(v)))
-                        .orElse(null);
-
-//                Optional<List<String>> values = pathParam.provider(p, uriInfo).or(() -> queryParam.provider(p, uriInfo));
-//                return values.map(v -> converters.get(p.getType()).fromString(v)).orElse(null);
-            }).toArray(Object[]::new);
+            Object[] parameters = Arrays.stream(method.getParameters())
+                    .map(parameter -> providers.stream()
+                            .map(provider -> provider.provider(parameter, uriInfo))
+                            .filter(Optional::isPresent)
+                            .findFirst()
+                            .flatMap(values -> values.map(v -> converters.get(parameter.getType()).fromString(v)))
+                            .orElse(null)).toArray(Object[]::new);
 
             Object result = method.invoke(builder.getLastMatchedResource(), parameters);
             return result != null ? new GenericEntity<>(result, method.getGenericReturnType()) : null;
@@ -185,7 +180,10 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
         }
     }
 
-    private static Map<Type, ValueConverter> converters = Map.of(int.class, ValueConverter.singleValue(Integer::parseInt), String.class, ValueConverter.singleValue(s -> s));
+    private static Map<Type, ValueConverter> converters = Map.of(
+            int.class, ValueConverter.singleValue(Integer::parseInt),
+            Double.class, ValueConverter.singleValue(Double::parseDouble),
+            String.class, ValueConverter.singleValue(s -> s));
 
     @Override
     public String toString() {
