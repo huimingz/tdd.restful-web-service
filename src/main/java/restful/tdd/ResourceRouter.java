@@ -145,50 +145,10 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
 
     @Override
     public GenericEntity<?> call(ResourceContext context, UriInfoBuilder builder) {
-        try {
-            UriInfo uriInfo = builder.createUriInfo();
-
-            Object[] parameters = Arrays.stream(method.getParameters())
-                    .map(parameter -> injectParameters(parameter, uriInfo)
-                            .or(() -> injectContext(parameter, context, uriInfo))
-                            .orElse(null)).toArray(Object[]::new);
-
-            Object result = method.invoke(builder.getLastMatchedResource(), parameters);
-            return result != null ? new GenericEntity<>(result, method.getGenericReturnType()) : null;
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException(e);
-        }
+        Object result = MethodInvoker.invoke(method, context, builder);
+        return result != null ? new GenericEntity<>(result, method.getGenericReturnType()) : null;
     }
 
-    private static Optional<Object> injectParameters(Parameter parameter, UriInfo uriInfo) {
-        return providers.stream()
-                .map(provider -> provider.provider(parameter, uriInfo))
-                .filter(Optional::isPresent)
-                .findFirst()
-                .flatMap(values -> values.flatMap(v -> convert(parameter, v)));
-    }
-
-    private static Optional<Object> injectContext(Parameter parameter, ResourceContext resourceContext, UriInfo uriInfo) {
-        if (parameter.getType().equals(ResourceContext.class)) return Optional.of(resourceContext);
-        if (parameter.getType().equals(UriInfo.class)) return Optional.of(uriInfo);
-        return Optional.of(resourceContext.getResource(parameter.getType()));
-    }
-
-    private static Optional<Object> convert(Parameter parameter, List<String> values) {
-        return PrimitiveConverter.converter(parameter, values)
-                .or(() -> ConverterConstructor.convert(parameter.getType(), values.get(0)))
-                .or(() -> ConverterFactory.convert(parameter.getType(), values.get(0)));
-    }
-
-
-    private static ValueProvider pathParam = (parameter, uriInfo) -> Optional.ofNullable(parameter.getAnnotation(PathParam.class)).map(a -> uriInfo.getPathParameters().get(a.value()));
-    private static ValueProvider queryParam = (parameter, uriInfo) -> Optional.ofNullable(parameter.getAnnotation(QueryParam.class)).map(a -> uriInfo.getQueryParameters().get(a.value()));
-
-    private static List<ValueProvider> providers = List.of(pathParam, queryParam);
-
-    interface ValueProvider {
-        Optional<List<String>> provider(Parameter parameter, UriInfo uriInfo);
-    }
 
     interface ValueConverter<T> {
         T fromString(List<String> value);
@@ -215,46 +175,7 @@ class DefaultResourceMethod implements ResourceRouter.ResourceMethod {
 }
 
 
-class PrimitiveConverter {
 
-    private static Map<Type, DefaultResourceMethod.ValueConverter> primitives = Map.of(
-            int.class, DefaultResourceMethod.ValueConverter.singleValue(Integer::parseInt),
-            Double.class, DefaultResourceMethod.ValueConverter.singleValue(Double::parseDouble),
-            short.class, DefaultResourceMethod.ValueConverter.singleValue(Short::parseShort),
-            float.class, DefaultResourceMethod.ValueConverter.singleValue(Float::parseFloat),
-            byte.class, DefaultResourceMethod.ValueConverter.singleValue(Byte::parseByte),
-            boolean.class, DefaultResourceMethod.ValueConverter.singleValue(Boolean::parseBoolean),
-            String.class, DefaultResourceMethod.ValueConverter.singleValue(s -> s));
-
-    public static Optional<Object> converter(Parameter parameter, List<String> values) {
-        return Optional.ofNullable(primitives.get(parameter.getType()))
-                .map(c -> c.fromString(values));
-    }
-}
-
-
-class ConverterConstructor {
-
-    public static Optional<Object> convert(Class<?> converter, String value) {
-        try {
-            return Optional.of(converter.getConstructor(String.class).newInstance(value));
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
-                 NoSuchMethodException e) {
-            return Optional.empty();
-        }
-    }
-}
-
-class ConverterFactory {
-
-    public static Optional<Object> convert(Class<?> converter, String value) {
-        try {
-            return Optional.of(converter.getMethod("valueOf", String.class).invoke(null, value));
-        } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-            return Optional.empty();
-        }
-    }
-}
 
 
 class SubResourceLocators {
