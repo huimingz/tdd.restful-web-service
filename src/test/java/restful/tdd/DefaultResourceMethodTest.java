@@ -6,10 +6,8 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.container.ResourceContext;
 import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.UriInfo;
 import org.junit.jupiter.api.*;
-import org.mockito.Mockito;
 
 import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
@@ -20,24 +18,11 @@ import java.util.stream.Collectors;
 
 import static org.mockito.ArgumentMatchers.eq;
 
-public class DefaultResourceMethodTest {
+public class DefaultResourceMethodTest extends InjectableCallerTest {
 
-    private ResourceContext context;
-    private UriInfoBuilder builder;
-    private CallableResourceMethods resource;
-    private UriInfo uriInfo;
-    private MultivaluedHashMap<String, String> parameters;
-
-    private LastCall lastCall;
-
-    record LastCall(String name, List<Object> arguments) {
-    }
-
-    private SomeServiceInContext service;
-
-    @BeforeEach
-    public void before() {
-        resource = (CallableResourceMethods) Proxy.newProxyInstance(
+    @Override
+    protected Object initResource() {
+        return Proxy.newProxyInstance(
                 this.getClass().getClassLoader(),
                 new Class[]{CallableResourceMethods.class},
                 (proxy, method, args) -> {
@@ -47,18 +32,6 @@ public class DefaultResourceMethodTest {
                             args != null ? List.of(args) : List.of());
                     return "getList".equals(method.getName()) ? new ArrayList<String>() : null;
                 });
-
-        context = Mockito.mock(ResourceContext.class);
-        uriInfo = Mockito.mock(UriInfo.class);
-        builder = Mockito.mock(UriInfoBuilder.class);
-        service = Mockito.mock(SomeServiceInContext.class);
-        parameters = new MultivaluedHashMap<>();
-
-        Mockito.when(builder.getLastMatchedResource()).thenReturn(resource);
-        Mockito.when(builder.createUriInfo()).thenReturn(uriInfo);
-        Mockito.when(uriInfo.getPathParameters()).thenReturn(parameters);
-        Mockito.when(uriInfo.getQueryParameters()).thenReturn(parameters);
-        Mockito.when(context.getResource(eq(SomeServiceInContext.class))).thenReturn(service);
     }
 
     private static String getMethodName(String name, List<? extends Class<?>> classStream) {
@@ -70,14 +43,11 @@ public class DefaultResourceMethodTest {
         DefaultResourceMethod resourceMethod = getResourceMethod("get");
         resourceMethod.call(context, builder);
 
-        Assertions.assertEquals("get()", lastCall.name);
+        Assertions.assertEquals("get()", lastCall.name());
     }
 
     private static DefaultResourceMethod getResourceMethod(String methodName, Class... types) throws NoSuchMethodException {
         return new DefaultResourceMethod(CallableResourceMethods.class.getMethod(methodName, types));
-    }
-
-    record InjectableTpeTestCase(Class<?> type, String string, Object value) {
     }
 
     @TestFactory
@@ -100,8 +70,8 @@ public class DefaultResourceMethodTest {
 
         for (String type : paramTypes) {
             for (InjectableTpeTestCase testCase : typeCases) {
-                tests.add(DynamicTest.dynamicTest("should inject " + testCase.type.getSimpleName() + " to " + type, () -> {
-                    verifyResourceMethodCalled(type, testCase.type, testCase.string, testCase.value);
+                tests.add(DynamicTest.dynamicTest("should inject " + testCase.type().getSimpleName() + " to " + type, () -> {
+                    verifyResourceMethodCalled(type, testCase.type(), testCase.string(), testCase.value());
                 }));
             }
         }
@@ -121,8 +91,8 @@ public class DefaultResourceMethodTest {
         List<String> paramTypes = List.of("getQueryParam");
 
         for (InjectableTpeTestCase testCase : typeCases) {
-            tests.add(DynamicTest.dynamicTest("should inject " + testCase.type.getSimpleName() + " to getContext", () -> {
-                verifyResourceMethodCalled("getContext", testCase.type, testCase.string, testCase.value);
+            tests.add(DynamicTest.dynamicTest("should inject " + testCase.type().getSimpleName() + " to getContext", () -> {
+                verifyResourceMethodCalled("getContext", testCase.type(), testCase.string(), testCase.value());
             }));
         }
         return tests;
@@ -130,13 +100,17 @@ public class DefaultResourceMethodTest {
 
 
     private void verifyResourceMethodCalled(String method, Class<?> type, String paramValue, Object value) throws NoSuchMethodException {
-        DefaultResourceMethod resourceMethod = getResourceMethod(method, type);
-
         parameters.put("param", List.of(paramValue));
-        resourceMethod.call(context, builder);
 
-        Assertions.assertEquals(getMethodName(method, List.of(type)), lastCall.name);
-        Assertions.assertEquals(List.of(value), lastCall.arguments);
+        callInjectable(method, type);
+
+        Assertions.assertEquals(getMethodName(method, List.of(type)), lastCall.name());
+        Assertions.assertEquals(List.of(value), lastCall.arguments());
+    }
+
+    private void callInjectable(String method, Class<?> type) throws NoSuchMethodException {
+        DefaultResourceMethod resourceMethod = getResourceMethod(method, type);
+        resourceMethod.call(context, builder);
     }
 
     @Test
@@ -215,6 +189,7 @@ public class DefaultResourceMethodTest {
 
         @GET
         String getContext(@Context ResourceContext context);
+
         @GET
         String getContext(@Context UriInfo uriInfo);
     }
