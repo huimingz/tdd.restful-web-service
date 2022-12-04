@@ -7,16 +7,14 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.container.ResourceContext;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.UriInfo;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
-
-import static org.mockito.ArgumentMatchers.eq;
 
 public class DefaultResourceMethodTest extends InjectableCallerTest {
 
@@ -34,10 +32,6 @@ public class DefaultResourceMethodTest extends InjectableCallerTest {
                 });
     }
 
-    private static String getMethodName(String name, List<? extends Class<?>> classStream) {
-        return name + "(" + classStream.stream().map(t -> t.getSimpleName()).collect(Collectors.joining(",")) + ")";
-    }
-
     @Test
     public void should_call_resource_method() throws NoSuchMethodException {
         DefaultResourceMethod resourceMethod = getResourceMethod("get");
@@ -50,68 +44,13 @@ public class DefaultResourceMethodTest extends InjectableCallerTest {
         return new DefaultResourceMethod(CallableResourceMethods.class.getMethod(methodName, types));
     }
 
-    @TestFactory
-    public List<DynamicTest> inject_convertable_types() {
-        List<DynamicTest> tests = new ArrayList<>();
 
-        List<InjectableTpeTestCase> typeCases = List.of(
-                new InjectableTpeTestCase(String.class, "string", "string"),
-                new InjectableTpeTestCase(int.class, "1", 1),
-                new InjectableTpeTestCase(Double.class, "3.14", 3.14),
-                new InjectableTpeTestCase(float.class, "3.14", 3.14f),
-                new InjectableTpeTestCase(short.class, "323", (short) 323),
-                new InjectableTpeTestCase(byte.class, "42", (byte) 42),
-                new InjectableTpeTestCase(boolean.class, "true", true),
-                new InjectableTpeTestCase(Converter.class, "Factory", Converter.Factory),
-                new InjectableTpeTestCase(BigDecimal.class, "314", new BigDecimal("314"))
-        );
-
-        List<String> paramTypes = List.of("getQueryParam", "getPathParam");
-
-        for (String type : paramTypes) {
-            for (InjectableTpeTestCase testCase : typeCases) {
-                tests.add(DynamicTest.dynamicTest("should inject " + testCase.type().getSimpleName() + " to " + type, () -> {
-                    verifyResourceMethodCalled(type, testCase.type(), testCase.string(), testCase.value());
-                }));
-            }
-        }
-        return tests;
-    }
-
-    @TestFactory
-    public List<DynamicTest> inject_context_object() {
-        List<DynamicTest> tests = new ArrayList<>();
-
-        List<InjectableTpeTestCase> typeCases = List.of(
-                new InjectableTpeTestCase(SomeServiceInContext.class, "N/A", service),
-                new InjectableTpeTestCase(ResourceContext.class, "N/A", context),
-                new InjectableTpeTestCase(UriInfo.class, "N/A", uriInfo)
-        );
-
-        List<String> paramTypes = List.of("getQueryParam");
-
-        for (InjectableTpeTestCase testCase : typeCases) {
-            tests.add(DynamicTest.dynamicTest("should inject " + testCase.type().getSimpleName() + " to getContext", () -> {
-                verifyResourceMethodCalled("getContext", testCase.type(), testCase.string(), testCase.value());
-            }));
-        }
-        return tests;
-    }
-
-
-    private void verifyResourceMethodCalled(String method, Class<?> type, String paramValue, Object value) throws NoSuchMethodException {
-        parameters.put("param", List.of(paramValue));
-
-        callInjectable(method, type);
-
-        Assertions.assertEquals(getMethodName(method, List.of(type)), lastCall.name());
-        Assertions.assertEquals(List.of(value), lastCall.arguments());
-    }
-
-    private void callInjectable(String method, Class<?> type) throws NoSuchMethodException {
-        DefaultResourceMethod resourceMethod = getResourceMethod(method, type);
+    @Override
+    protected void callInjectable(Class<?> type, String methodName) throws NoSuchMethodException {
+        DefaultResourceMethod resourceMethod = getResourceMethod(methodName, type);
         resourceMethod.call(context, builder);
     }
+
 
     @Test
     public void should_call_resource_method_with_void_return() throws NoSuchMethodException {

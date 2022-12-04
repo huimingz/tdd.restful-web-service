@@ -39,7 +39,7 @@ public class SubResourceLocatorTest extends InjectableCallerTest {
                 });
     }
 
-    private static String getMethodName(String name, List<? extends Class<?>> classStream) {
+    protected static String getMethodName(String name, List<? extends Class<?>> classStream) {
         return name + "(" + classStream.stream().map(t -> t.getSimpleName()).collect(Collectors.joining(",")) + ")";
     }
 
@@ -58,7 +58,8 @@ public class SubResourceLocatorTest extends InjectableCallerTest {
         Assertions.assertEquals(List.of(paramValue), lastCall.arguments());
     }
 
-    private void callInjectable(Class<?> type, String methodName) throws NoSuchMethodException {
+    @Override
+    protected void callInjectable(Class<?> type, String methodName) throws NoSuchMethodException {
         SubResourceLocators.SubResourceLocator locator = new SubResourceLocators.SubResourceLocator(SubResourceMethods.class.getMethod(methodName, type));
         locator.match(result, "GET", new String[]{}, context, builder);
     }
