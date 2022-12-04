@@ -1,12 +1,12 @@
 package restful.tdd;
 
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.container.ResourceContext;
 import jakarta.ws.rs.core.MultivaluedHashMap;
+import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.UriInfo;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.TestFactory;
+import jakarta.ws.rs.ext.RuntimeDelegate;
+import org.junit.jupiter.api.*;
 import org.mockito.Mockito;
 
 import java.math.BigDecimal;
@@ -14,7 +14,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 
 public abstract class InjectableCallerTest {
     protected ResourceContext context;
@@ -23,6 +25,7 @@ public abstract class InjectableCallerTest {
     protected MultivaluedHashMap<String, String> parameters;
     protected DefaultResourceMethodTest.LastCall lastCall;
     protected SomeServiceInContext service;
+    protected RuntimeDelegate delegate;
     private Object resource;
 
     @BeforeEach
@@ -34,15 +37,43 @@ public abstract class InjectableCallerTest {
         builder = Mockito.mock(UriInfoBuilder.class);
         service = Mockito.mock(SomeServiceInContext.class);
         parameters = new MultivaluedHashMap<>();
+        delegate = Mockito.mock(RuntimeDelegate.class);
+        RuntimeDelegate.setInstance(delegate);
 
         Mockito.when(builder.getLastMatchedResource()).thenReturn(resource);
         Mockito.when(builder.createUriInfo()).thenReturn(uriInfo);
         Mockito.when(uriInfo.getPathParameters()).thenReturn(parameters);
         Mockito.when(uriInfo.getQueryParameters()).thenReturn(parameters);
         Mockito.when(context.getResource(eq(SomeServiceInContext.class))).thenReturn(service);
+        when(delegate.createResponseBuilder()).thenReturn(new StubResponseBuilder());
+        when(delegate.createHeaderDelegate(eq(NewCookie.class))).thenReturn(new RuntimeDelegate.HeaderDelegate<>() {
+            @Override
+            public NewCookie fromString(String value) {
+                return null;
+            }
+
+            @Override
+            public String toString(NewCookie value) {
+                return value.getName() + "=" + value.getValue();
+            }
+        });
     }
 
     protected abstract Object initResource();
+
+    @Test
+    public void should_not_wrap_around_web_application_exception() throws NoSuchMethodException {
+        parameters.put("param", List.of("param"));
+
+        try {
+            callInjectable(String.class, "throwWebApplicationException");
+        } catch (WebApplicationException e) {
+            Assertions.assertEquals(300, e.getResponse().getStatus());
+        } catch (Exception e) {
+            fail();
+        }
+
+    }
 
     protected static String getMethodName(String name, List<? extends Class<?>> classStream) {
         return name + "(" + classStream.stream().map(t -> t.getSimpleName()).collect(Collectors.joining(",")) + ")";
@@ -95,6 +126,7 @@ public abstract class InjectableCallerTest {
         }
         return tests;
     }
+
 
     private void verifyResourceMethodCalled(String method, Class<?> type, String paramValue, Object value) throws NoSuchMethodException {
         parameters.put("param", List.of(paramValue));

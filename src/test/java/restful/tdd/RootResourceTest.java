@@ -3,6 +3,7 @@ package restful.tdd;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ResourceContext;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.UriInfo;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mockito;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.eq;
@@ -86,13 +88,25 @@ public class RootResourceTest {
         Assertions.assertTrue(uriInfoBuilder.getLastMatchedResource() instanceof Messages);
     }
 
-    // TODO: if resource class does not have a path annotation, throw illegal argument.
     @Test
     public void should_throw_illegal_argument_exception_if_root_resource_not_have_path_annotation() {
         Assertions.assertThrows(IllegalArgumentException.class, () -> new RootResourceHandler(Message.class));
     }
 
-    // TODO: Head and Options special case.
+
+    @Test
+    public void should_add_last_match_path_parameters_to_uri_info_builder() {
+        StubUriInfoBuilder uriInfoBuilder = new StubUriInfoBuilder();
+        RootResourceHandler resource = new RootResourceHandler(Messages.class);
+        UriTemplate.MatchResult result = resource.getUriTemplate().match("/messages/1").get();
+
+        Optional<ResourceRouter.ResourceMethod> method = resource.match(result, "GET", new String[]{MediaType.TEXT_PLAIN}, resourceContext, uriInfoBuilder);
+
+        Assertions.assertTrue(uriInfoBuilder.getLastMatchedResource() instanceof Message);
+
+        UriInfo uriInfo = uriInfoBuilder.createUriInfo();
+        Assertions.assertEquals(List.of("1"), uriInfo.getPathParameters().get("id"));
+    }
 
 
     @Path("/messages")

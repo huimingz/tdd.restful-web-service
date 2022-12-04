@@ -1,9 +1,6 @@
 package restful.tdd;
 
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ResourceContext;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.UriInfo;
@@ -28,6 +25,10 @@ public class DefaultResourceMethodTest extends InjectableCallerTest {
                     lastCall = new LastCall(
                             getMethodName(name, Arrays.stream(method.getParameters()).map(p -> p.getType()).toList()),
                             args != null ? List.of(args) : List.of());
+
+                    if (method.getName().equals("throwWebApplicationException")) {
+                        throw new WebApplicationException(300);
+                    }
                     return "getList".equals(method.getName()) ? new ArrayList<String>() : null;
                 });
     }
@@ -131,6 +132,9 @@ public class DefaultResourceMethodTest extends InjectableCallerTest {
 
         @GET
         String getContext(@Context UriInfo uriInfo);
+
+        @GET
+        String  throwWebApplicationException(@PathParam("param") String path);
     }
 }
 

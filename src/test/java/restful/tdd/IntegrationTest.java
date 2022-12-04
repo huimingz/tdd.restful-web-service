@@ -12,10 +12,7 @@ import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.Providers;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 import net.bytebuddy.description.NamedElement;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.api.*;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -50,10 +47,6 @@ public class IntegrationTest extends ServletTest {
         resourceContext = Mockito.mock(ResourceContext.class);
         providers = Mockito.mock(Providers.class);
 
-        MultivaluedHashMap<String, String> parameters = new MultivaluedHashMap<>();
-        parameters.put("id", List.of("john-smith"));
-
-        when(uriInfo.getPathParameters()).thenReturn(parameters);
         when(runtime.getResourceRouter()).thenReturn(router);
         when(runtime.createUriInfoBuilder(any())).thenReturn(new StubUriInfoBuilder(uriInfo));
         when(runtime.createResourceContext(any(), any())).thenReturn(resourceContext);

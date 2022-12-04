@@ -1,28 +1,35 @@
 package restful.tdd;
 
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.NewCookie;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 
 public class SubResourceLocatorTest extends InjectableCallerTest {
 
     private UriTemplate.MatchResult result;
+    Map<String, String> matchedPathParameters = Map.of("param", "param");
 
     @BeforeEach
     public void before() {
         super.before();
         result = Mockito.mock(UriTemplate.MatchResult.class);
+        Mockito.when(result.getMatchedPathParameters()).thenReturn(matchedPathParameters);
     }
 
     @Override
@@ -35,8 +42,30 @@ public class SubResourceLocatorTest extends InjectableCallerTest {
                     lastCall = new DefaultResourceMethodTest.LastCall(
                             getMethodName(name, Arrays.stream(method.getParameters()).map(p -> p.getType()).toList()),
                             args != null ? List.of(args) : List.of());
+                    if (method.getName().equals("throwWebApplicationException")) {
+                        throw new WebApplicationException(300);
+                    }
                     return new Message();
                 });
+    }
+
+    @Override
+    public List<DynamicTest> inject_convertable_types() {
+        return null;
+    }
+
+    @Override
+    public List<DynamicTest> inject_context_object() {
+        return null;
+    }
+
+    @Test
+    public void should_add_matched_path_parameter_to_builder() throws NoSuchMethodException {
+        parameters.put("param", List.of("param"));
+
+        callInjectable(String.class, "getPathParam");
+
+        Mockito.verify(builder).addMatchedPathParameters(matchedPathParameters);
     }
 
     protected static String getMethodName(String name, List<? extends Class<?>> classStream) {
@@ -67,6 +96,9 @@ public class SubResourceLocatorTest extends InjectableCallerTest {
     interface SubResourceMethods {
         @Path("/messages/{param}")
         Message getPathParam(@PathParam("param") String path);
+
+        @Path("/message/{param}")
+        Message throwWebApplicationException(@PathParam("param") String path);
     }
 
     static class Message {
