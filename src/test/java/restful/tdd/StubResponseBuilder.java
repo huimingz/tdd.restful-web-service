@@ -22,6 +22,8 @@ public class StubResponseBuilder extends Response.ResponseBuilder {
         Mockito.when(response.getAllowedMethods()).thenReturn(allowed);
         Mockito.when(response.getGenericEntity()).thenReturn((GenericEntity) entity);
         Mockito.when(response.getHeaders()).thenReturn(new MultivaluedHashMap<>());
+        Mockito.when(response.getStatusInfo()).thenReturn(Response.Status.fromStatusCode(status));
+
         return response;
     }
 
