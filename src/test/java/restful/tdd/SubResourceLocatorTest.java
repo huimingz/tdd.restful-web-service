@@ -75,6 +75,5 @@ public class SubResourceLocatorTest extends InjectableCallerTest {
         public String content() {
             return "content";
         }
-
     }
 }
